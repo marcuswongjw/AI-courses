@@ -16,7 +16,7 @@ create table if not exists public.courses (
   id          uuid default gen_random_uuid() primary key,
   tgs_number  text,
   name        text not null,
-  pick        integer check (pick in (1, 2, 3)),
+  pick        integer check (pick >= 1),
   archetype   text,
   status      text not null default 'Unassigned'
                 check (status in ('Unassigned','Claimed','Confirmed','Completed')),
@@ -325,6 +325,11 @@ insert into public.courses (tgs_number, name, pick, archetype, next_run, course_
 -- was added, run this once to add it to an existing database:
 --   alter table public.courses
 --     add column if not exists recommended boolean not null default false;
+--
+-- MIGRATION: if you ran the schema before open-ended tiers, run this
+-- once to drop the old tier check constraint:
+--   alter table public.courses drop constraint if exists courses_pick_check;
+--   alter table public.courses add constraint courses_pick_check check (pick >= 1);
 -- ============================================================
 
 -- ============================================================
