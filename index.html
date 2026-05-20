@@ -1576,7 +1576,116 @@ function renderAdmin() {
             <tbody>${submittedRows}</tbody>
           </table>
         </div>` : `<p style="color:var(--text2);font-size:13px">No submitted evaluations yet.</p>`}
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Duplicate Courses</span>
+        <button class="btn btn-secondary btn-sm" onclick="renderDuplicates()" style="font-size:12px">🔍 Scan for Duplicates</button>
+      </div>
+      <div id="dup-results"><p style="color:var(--text2);font-size:13px">Click Scan to check for duplicate course names or TGS numbers.</p></div>
     </div>`;
+}
+
+
+function renderDuplicates() {
+  const el = qs('#dup-results');
+  el.innerHTML = '<p style="color:var(--text2);font-size:13px">Scanning…</p>';
+
+  // Group by normalised name
+  const byName = {};
+  for (const c of S.courses) {
+    const key = c.name.trim().toLowerCase();
+    (byName[key] = byName[key] || []).push(c);
+  }
+  // Group by TGS number (non-null)
+  const byTgs = {};
+  for (const c of S.courses) {
+    if (!c.tgs_number) continue;
+    const key = c.tgs_number.trim().toLowerCase();
+    (byTgs[key] = byTgs[key] || []).push(c);
+  }
+
+  // Collect duplicate groups — use course id as dedup key so a course only appears once per group
+  const groups = [];
+  const seen = new Set();
+
+  const addGroup = (reason, courses) => {
+    const ids = courses.map(c => c.id).sort().join(',');
+    if (seen.has(ids)) return;
+    seen.add(ids);
+    groups.push({ reason, courses });
+  };
+
+  for (const [, cs] of Object.entries(byName))  if (cs.length > 1) addGroup('Same name',       cs);
+  for (const [, cs] of Object.entries(byTgs))   if (cs.length > 1) addGroup('Same TGS number', cs);
+
+  if (!groups.length) {
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:var(--green);font-size:13px;padding:8px 0">✓ No duplicates found.</div>';
+    return;
+  }
+
+  const totalCourses = new Set(groups.flatMap(g => g.courses.map(c => c.id))).size;
+  let html = `<div style="color:var(--text2);font-size:12px;margin-bottom:14px">${groups.length} duplicate group${groups.length>1?'s':''} found across ${totalCourses} courses. Delete the ones you don't need — courses with audits are flagged.</div>`;
+
+  for (const g of groups) {
+    const rows = g.courses.map(c => {
+      const courseAudits = S.audits.filter(a => a.course_id === c.id);
+      const hasAudits    = courseAudits.length > 0;
+      const submitted    = courseAudits.filter(a => a.submitted_at).length;
+      const claimed      = courseAudits.length;
+      const auditNote    = hasAudits
+        ? `<span style="color:#fbbf24;font-size:11px" title="Has linked audits — deleting will remove them too">⚠ ${claimed} audit${claimed>1?'s':''}${submitted?' · '+submitted+' submitted':''}</span>`
+        : `<span style="color:var(--text3);font-size:11px">No audits</span>`;
+      return `<tr>
+        <td style="max-width:260px;font-size:13px">${esc(c.name)}</td>
+        <td style="font-size:12px;color:var(--text2)">${esc(c.tgs_number||'—')}</td>
+        <td>${tierBadgeHtml(c.pick)}</td>
+        <td>${badgeHtml(c.status)}</td>
+        <td>${auditNote}</td>
+        <td><button class="btn btn-red btn-sm" onclick="adminDeleteCourse('${c.id}')">Delete</button></td>
+      </tr>`;
+    }).join('');
+
+    html += `<div style="margin-bottom:20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="padding:8px 14px;background:rgba(251,191,36,.06);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:#fbbf24">
+        ⚠ ${g.reason} · ${g.courses.length} courses
+      </div>
+      <div class="table-wrap" style="margin:0;border:none;border-radius:0">
+        <table style="border-radius:0">
+          <thead><tr><th>Course Name</th><th>TGS</th><th>Tier</th><th>Status</th><th>Audits</th><th>Action</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+async function adminDeleteCourse(courseId) {
+  const course     = S.courses.find(c => c.id === courseId);
+  const courseAudits = S.audits.filter(a => a.course_id === courseId);
+  const hasAudits  = courseAudits.length > 0;
+
+  const warn = hasAudits
+    ? `\n\n⚠ This course has ${courseAudits.length} linked audit(s)${courseAudits.some(a=>a.submitted_at)?' including submitted evaluations':''} — those will also be deleted.`
+    : '';
+
+  if (!confirm(`Delete "${course?.name || courseId}"?${warn}\n\nThis cannot be undone.`)) return;
+
+  // Delete linked audits first (RLS may not cascade automatically)
+  if (hasAudits) {
+    const { error: ae } = await db.from('audits').delete().eq('course_id', courseId);
+    if (ae) return toast('Failed to delete linked audits: ' + ae.message, 'error');
+  }
+
+  const { error } = await db.from('courses').delete().eq('id', courseId);
+  if (error) return toast(error.message, 'error');
+
+  toast(`"${course?.name}" deleted.`, 'info');
+  await reload();
+  renderDuplicates(); // re-run scan after reload
 }
 
 
@@ -1700,7 +1809,9 @@ function parseCsvLine(line) {
 const VALID_ARCHETYPES = ['AI Literate Workers','AI Fluent Workers','AI Fluent Biz Leaders'];
 
 function parseBulkCsv(raw) {
-  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  const lines = raw.split(/
+?
+/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
   const courses = [], errors = [];
   lines.forEach((line, i) => {
     const cols = parseCsvLine(line);
@@ -1725,6 +1836,21 @@ function parseBulkCsv(raw) {
   return { courses, errors };
 }
 
+// Returns duplicate reasons for a candidate course against existing DB courses + already-seen batch entries
+function dupReasons(c, seen) {
+  const reasons = [];
+  const nameLower = c.name.toLowerCase();
+  for (const ex of S.courses) {
+    if (c.tgs_number && ex.tgs_number && ex.tgs_number.toLowerCase() === c.tgs_number.toLowerCase())
+      reasons.push(`TGS ${c.tgs_number} already exists ("${ex.name}")`);
+    else if (ex.name.toLowerCase() === nameLower)
+      reasons.push(`Name already exists (Tier ${ex.pick})`);
+  }
+  if (seen.names.has(nameLower)) reasons.push('Duplicate name within this import');
+  if (c.tgs_number && seen.tgs.has(c.tgs_number.toLowerCase())) reasons.push('Duplicate TGS within this import');
+  return reasons;
+}
+
 function previewBulkImport() {
   const raw = qs('#bulk-csv-input').value.trim();
   const previewEl = qs('#bulk-preview');
@@ -1735,38 +1861,61 @@ function previewBulkImport() {
 
   const { courses, errors } = parseBulkCsv(raw);
 
+  const seen = { names: new Set(), tgs: new Set() };
+  const tagged = courses.map(c => {
+    const dups = dupReasons(c, seen);
+    seen.names.add(c.name.toLowerCase());
+    if (c.tgs_number) seen.tgs.add(c.tgs_number.toLowerCase());
+    return { ...c, _dups: dups };
+  });
+  const dupCount = tagged.filter(c => c._dups.length).length;
+
   let html = '';
   if (errors.length) {
     html += `<div style="background:rgba(240,79,79,.08);border:1px solid rgba(240,79,79,.25);border-radius:8px;padding:12px 14px;margin-bottom:12px">
-      <div style="font-weight:600;color:#f87171;margin-bottom:6px;font-size:13px">⚠ ${errors.length} error${errors.length>1?'s':''} found — fix before importing</div>
+      <div style="font-weight:600;color:#f87171;margin-bottom:6px;font-size:13px">⚠ ${errors.length} row error${errors.length>1?'s':''} — fix before importing</div>
       ${errors.map(e => `<div style="font-size:12px;color:#fca5a5;margin-top:2px">${esc(e)}</div>`).join('')}
     </div>`;
   }
-  if (courses.length) {
+  if (dupCount) {
+    html += `<div style="background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.25);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+      <div style="font-weight:600;color:#fbbf24;margin-bottom:4px;font-size:13px">⚠ ${dupCount} possible duplicate${dupCount>1?'s':''} detected</div>
+      <div style="font-size:12px;color:var(--text2)">Highlighted below. You can still import them if intentional (e.g. same course, new run dates).</div>
+    </div>`;
+  }
+  if (tagged.length) {
     html += `<div class="table-wrap"><table>
-      <thead><tr><th>TGS</th><th>Course Name</th><th>Tier</th><th>Archetype</th><th>Dates</th><th>Fee</th></tr></thead>
-      <tbody>${courses.map(c => `<tr>
+      <thead><tr><th>TGS</th><th>Course Name</th><th>Tier</th><th>Archetype</th><th>Dates</th><th>Fee</th><th></th></tr></thead>
+      <tbody>${tagged.map(c => `<tr style="${c._dups.length?'background:rgba(251,191,36,.05)':''}">
         <td style="font-size:12px;color:var(--text2)">${esc(c.tgs_number||'—')}</td>
-        <td style="max-width:240px;font-size:13px">${esc(c.name)}</td>
+        <td style="max-width:220px;font-size:13px">${esc(c.name)}</td>
         <td>${tierBadgeHtml(c.pick)}</td>
         <td style="font-size:12px;color:var(--text2)">${esc(c.archetype)}</td>
         <td style="font-size:12px;color:var(--text2)">${esc(c.next_run)}</td>
         <td style="font-size:12px;color:var(--text2)">${esc(c.course_fee)}</td>
+        <td style="min-width:120px">${c._dups.length
+          ? `<span title="${esc(c._dups.join('; '))}" style="font-size:11px;color:#fbbf24;cursor:help">⚠ ${c._dups.length > 1 ? c._dups.length + ' issues' : 'Possible dup'}</span>`
+          : `<span style="font-size:11px;color:var(--green)">✓ New</span>`}</td>
       </tr>`).join('')}</tbody>
     </table></div>`;
   }
 
   previewEl.innerHTML = html;
-  if (courses.length && !errors.length) {
-    statusEl.textContent = `${courses.length} course${courses.length>1?'s':''} ready to import`;
-    statusEl.style.color = 'var(--green)';
+
+  if (tagged.length && !errors.length) {
+    const newCount = tagged.filter(c => !c._dups.length).length;
+    statusEl.innerHTML = newCount === tagged.length
+      ? `<span style="color:var(--green)">${tagged.length} course${tagged.length>1?'s':''} ready</span>`
+      : `<span style="color:var(--green)">${newCount} new</span>&nbsp;·&nbsp;<span style="color:#fbbf24">${dupCount} flagged</span>`;
     importBtn.style.display = '';
+    importBtn.textContent   = dupCount
+      ? `Import All ${tagged.length} (incl. ${dupCount} flagged)`
+      : `Import ${tagged.length} Course${tagged.length>1?'s':''}`;
   } else {
-    statusEl.textContent = courses.length ? `${courses.length} valid, ${errors.length} with errors` : `No valid courses`;
-    statusEl.style.color = 'var(--text2)';
+    statusEl.innerHTML = `<span style="color:var(--text2)">${tagged.length ? `${tagged.length} valid, ${errors.length} with errors` : 'No valid courses'}</span>`;
     importBtn.style.display = 'none';
   }
-  window._bulkParsed = courses;
+  window._bulkParsed = tagged;
 }
 
 async function confirmBulkImport() {
@@ -1774,23 +1923,32 @@ async function confirmBulkImport() {
   if (!courses?.length) return;
   const btn = qs('#bulk-import-btn');
   btn.disabled = true; btn.textContent = 'Importing…';
-  const { error } = await db.from('courses').insert(courses);
-  btn.disabled = false; btn.textContent = 'Import Courses';
-  if (error) return toast(error.message, 'error');
+  const toInsert = courses.map(({ _dups, ...c }) => c);
+  const { error } = await db.from('courses').insert(toInsert);
+  btn.disabled = false;
+  if (error) { btn.textContent = 'Import Courses'; return toast(error.message, 'error'); }
   qs('#bulk-csv-input').value = '';
   qs('#bulk-preview').innerHTML = '';
   qs('#bulk-status').textContent = '';
   btn.style.display = 'none';
   window._bulkParsed = [];
-  toast(`✓ ${courses.length} course${courses.length>1?'s':''} imported successfully!`, 'success');
+  toast(`✓ ${toInsert.length} course${toInsert.length>1?'s':''} imported!`, 'success');
   await reload();
 }
 
 async function adminAddCourse() {
-  const name  = qs('#nc-name').value.trim();
+  const name = qs('#nc-name').value.trim();
   if (!name) return toast('Course name is required.', 'error');
+  const tgs  = qs('#nc-tgs').value.trim() || null;
+
+  const dups = dupReasons({ name, tgs_number: tgs }, { names: new Set(), tgs: new Set() });
+  if (dups.length) {
+    const proceed = confirm(`Possible duplicate detected:\n• ${dups.join('\n• ')}\n\nAdd anyway?`);
+    if (!proceed) return;
+  }
+
   const { error } = await db.from('courses').insert({
-    tgs_number: qs('#nc-tgs').value.trim() || null,
+    tgs_number: tgs,
     name,
     pick: parseInt(qs('#nc-tier').value),
     archetype: qs('#nc-arch').value,
@@ -1802,6 +1960,8 @@ async function adminAddCourse() {
   ['nc-tgs','nc-name','nc-fee','nc-dates'].forEach(id => { qs('#'+id).value = ''; });
   toast('Course added!', 'success');
   await reload();
+}
+
 }
 
 // ─────────────────────────────────────────────────────────
