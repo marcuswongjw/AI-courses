@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Course Audit Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&family=Fraunces:opsz,wght@9..144,700;9..144,800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ─── DESIGN TOKENS ─────────────────────────────────────── */
+:root {
+  --bg:       #070b12;
+  --bg2:      #0d1420;
+  --bg3:      #121c2e;
+  --bg4:      #182234;
+  --border:   #1c2a40;
+  --border2:  #243350;
+  --text:     #dce8f5;
+  --text2:    #7a9ab8;
+  --text3:    #3a526a;
+  --accent:   #4a8fff;
+  --accent2:  #2e6fe8;
+  --amber:    #f0a500;
+  --amber2:   #d49000;
+  --green:    #22c55e;
+  --red:      #f04f4f;
+  --purple:   #a78bfa;
+  --head:     'Fraunces', serif;
+  --sans:     'IBM Plex Sans', sans-serif;
+  --mono:     'IBM Plex Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── AUTH ───────────────────────────────────────────────── */
+#auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 60% 50% at 20% 30%, rgba(74,143,255,.07) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 80% 70%, rgba(167,139,250,.05) 0%, transparent 70%);
+}
+#auth-screen.hidden, #app.hidden { display: none; }
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 40px 36px;
+  box-shadow: 0 32px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(74,143,255,.04);
+}
+.auth-wordmark {
+  font-family: var(--head);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  margin-bottom: 2px;
+  line-height: 1.1;
+}
+.auth-wordmark em { color: var(--accent); font-style: normal; }
+.auth-sub {
+  color: var(--text2);
+  font-size: 12px;
+  margin-bottom: 32px;
+  font-family: var(--mono);
+}
+.error-msg {
+  background: rgba(240,79,79,.1);
+  border: 1px solid rgba(240,79,79,.25);
+  color: #fca5a5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 16px;
+  display: none;
+}
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 5px;
+}
+.form-input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 13px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  outline: none;
+  transition: border-color .2s;
+}
+.form-input:focus { border-color: var(--accent); background: var(--bg2); }
+.form-input::placeholder { color: var(--text3); }
+.auth-toggle {
+  text-align: center;
+  margin-top: 18px;
+  color: var(--text2);
+  font-size: 12px;
+}
+.auth-toggle a { color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ─── BUTTONS ────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px;
+  border-radius: 8px; border: none;
+  font-family: var(--sans); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .15s; outline: none;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary {
+  background: var(--accent); color: #fff;
+  width: 100%; justify-content: center;
+  padding: 11px; font-size: 14px; margin-top: 4px;
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent2); }
+.btn-secondary {
+  background: transparent; color: var(--text2);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover:not(:disabled) { border-color: var(--border2); color: var(--text); }
+.btn-amber {
+  background: rgba(240,165,0,.13); color: var(--amber);
+  border: 1px solid rgba(240,165,0,.28);
+}
+.btn-amber:hover:not(:disabled) { background: rgba(240,165,0,.22); }
+.btn-green {
+  background: rgba(34,197,94,.12); color: var(--green);
+  border: 1px solid rgba(34,197,94,.28);
+}
+.btn-green:hover:not(:disabled) { background: rgba(34,197,94,.22); }
+.btn-red {
+  background: rgba(240,79,79,.1); color: var(--red);
+  border: 1px solid rgba(240,79,79,.22);
+}
+.btn-red:hover:not(:disabled) { background: rgba(240,79,79,.18); }
+.btn-sm { padding: 5px 11px; font-size: 12px; border-radius: 6px; }
+
+/* ─── APP SHELL ──────────────────────────────────────────── */
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+.app-header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 54px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(10px);
+}
+.app-wordmark {
+  font-family: var(--head);
+  font-size: 18px; font-weight: 800; letter-spacing: -.3px;
+}
+.app-wordmark em { color: var(--accent); font-style: normal; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.header-user { font-size: 13px; color: var(--text2); }
+.header-admin-badge {
+  background: rgba(240,165,0,.12);
+  color: var(--amber);
+  border: 1px solid rgba(240,165,0,.25);
+  border-radius: 5px; padding: 2px 8px;
+  font-size: 11px; font-family: var(--mono);
+}
+
+/* ─── NAV TABS ───────────────────────────────────────────── */
+.app-nav {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex; gap: 2px;
+  overflow-x: auto;
+}
+.app-nav::-webkit-scrollbar { display: none; }
+.nav-tab {
+  padding: 13px 15px;
+  background: none; border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text2);
+  font-family: var(--sans); font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: color .15s, border-color .15s;
+  margin-bottom: -1px;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ─── CONTENT ────────────────────────────────────────────── */
+.app-content {
+  padding: 28px 24px;
+  flex: 1;
+  max-width: 1300px;
+  width: 100%; margin: 0 auto;
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.page-title {
+  font-family: var(--head);
+  font-size: 24px; font-weight: 800; letter-spacing: -.4px;
+  margin-bottom: 2px;
+}
+.page-sub { color: var(--text2); font-size: 13px; margin-bottom: 22px; }
+
+/* ─── FILTERS ────────────────────────────────────────────── */
+.filters {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  align-items: center; margin-bottom: 14px;
+}
+.filter-select {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 11px;
+  color: var(--text2); font-size: 13px; font-family: var(--sans);
+  cursor: pointer; outline: none;
+  transition: border-color .15s;
+}
+.filter-select:focus { border-color: var(--accent); color: var(--text); }
+select option { background: #0d1420; }
+
+/* ─── TABLES ─────────────────────────────────────────────── */
+.table-wrap {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+table { width: 100%; border-collapse: collapse; }
+thead tr { border-bottom: 1px solid var(--border); }
+th {
+  padding: 9px 14px; text-align: left;
+  font-family: var(--mono); font-size: 10px;
+  font-weight: 500; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .1em;
+  white-space: nowrap;
+}
+td {
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(28,42,64,.7);
+  font-size: 13px; vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,.015); }
+
+/* ─── BADGES ─────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 100px;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  white-space: nowrap; border: 1px solid transparent;
+}
+.b-t1 { background: rgba(74,143,255,.12); color: #7bb3ff; border-color: rgba(74,143,255,.25); }
+.b-t2 { background: rgba(167,139,250,.12); color: #c4b5fd; border-color: rgba(167,139,250,.25); }
+.b-t3 { background: rgba(100,116,139,.08); color: #64748b; border-color: rgba(100,116,139,.18); }
+.b-unassigned { background: rgba(58,82,106,.12); color: var(--text3); border-color: rgba(58,82,106,.22); }
+.b-claimed    { background: rgba(240,165,0,.1);  color: #fbbf24; border-color: rgba(240,165,0,.22); }
+.b-confirmed  { background: rgba(74,143,255,.1); color: #7bb3ff; border-color: rgba(74,143,255,.22); }
+.b-completed  { background: rgba(34,197,94,.1);  color: #4ade80; border-color: rgba(34,197,94,.22); }
+
+.auditor-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.auditor-chip {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 100px; padding: 2px 8px;
+  font-size: 11px; color: var(--text2);
+}
+
+/* ─── MODAL ──────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 18px;
+  width: 100%; max-width: 500px;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 40px 80px rgba(0,0,0,.65);
+}
+.modal-head {
+  padding: 22px 24px 0;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+}
+.modal-title {
+  font-family: var(--head);
+  font-size: 19px; font-weight: 800; line-height: 1.25;
+}
+.modal-x {
+  background: none; border: none;
+  color: var(--text2); cursor: pointer;
+  font-size: 22px; line-height: 1; padding: 0;
+  flex-shrink: 0;
+}
+.modal-x:hover { color: var(--text); }
+.modal-body { padding: 18px 24px; }
+.modal-footer { padding: 0 24px 22px; display: flex; gap: 10px; justify-content: flex-end; }
+
+.modal-course-name {
+  font-weight: 500; font-size: 14px;
+  color: var(--text); margin-bottom: 18px;
+  padding: 10px 13px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.modal-section-label {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text3); text-transform: uppercase;
+  letter-spacing: .08em; margin-bottom: 10px;
+}
+.radio-group { display: flex; flex-direction: column; gap: 7px; }
+.radio-option {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 13px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; cursor: pointer;
+  transition: border-color .15s;
+}
+.radio-option:hover { border-color: var(--border2); }
+.radio-option.selected { border-color: var(--accent); background: rgba(74,143,255,.06); }
+.radio-option input[type="radio"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+.radio-label { font-size: 13px; color: var(--text); }
+
+/* ─── AVAILABILITY ───────────────────────────────────────── */
+.avail-list { display: flex; flex-direction: column; gap: 10px; }
+.avail-row {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 18px;
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.avail-name {
+  width: 160px; flex-shrink: 0;
+  font-size: 13px; font-weight: 500; color: var(--text);
+}
+.avail-name.me { color: var(--accent); }
+.day-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.day-btn {
+  padding: 6px 13px;
+  border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2);
+  font-family: var(--mono); font-size: 12px;
+  cursor: pointer; transition: all .15s;
+}
+.day-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.day-btn.on { background: rgba(74,143,255,.14); border-color: rgba(74,143,255,.35); color: var(--accent); font-weight: 500; }
+.day-btn.on-ro { background: rgba(34,197,94,.1); border-color: rgba(34,197,94,.28); color: var(--green); }
+.day-btn:disabled { cursor: default; }
+
+/* ─── EVALUATION FORM ────────────────────────────────────── */
+.eval-form { display: flex; flex-direction: column; gap: 20px; }
+.eval-section {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.eval-sec-head {
+  background: var(--bg3); border-bottom: 1px solid var(--border);
+  padding: 11px 18px; display: flex; align-items: center; gap: 10px;
+}
+.eval-sec-code {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: var(--accent); text-transform: uppercase; letter-spacing: .08em;
+}
+.eval-sec-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.eval-sec-body { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+.eval-field {}
+.eval-field-label {
+  font-size: 12px; font-weight: 500; color: var(--text2);
+  margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+}
+.field-code {
+  font-family: var(--mono); font-size: 10px; color: var(--accent);
+  background: rgba(74,143,255,.1); padding: 1px 6px;
+  border-radius: 4px;
+}
+.rating-btns { display: flex; gap: 5px; flex-wrap: wrap; }
+.r-btn {
+  padding: 6px 13px; border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2);
+  font-family: var(--sans); font-size: 12px;
+  cursor: pointer; transition: all .15s;
+}
+.r-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.r-btn.sel {
+  background: rgba(74,143,255,.14); border-color: rgba(74,143,255,.35);
+  color: var(--accent); font-weight: 500;
+}
+.r-btn:disabled { cursor: default; }
+.eval-ta {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 13px;
+  color: var(--text); font-family: var(--sans); font-size: 13px;
+  resize: vertical; min-height: 75px;
+  outline: none; transition: border-color .2s;
+}
+.eval-ta:focus { border-color: var(--accent); }
+.eval-ta:disabled { opacity: .6; cursor: not-allowed; }
+.eval-form-footer {
+  display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  padding: 4px 0;
+}
+.autosave {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 11px; color: var(--text3);
+}
+.as-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  transition: background .2s;
+}
+.as-dot.saving { background: var(--amber); animation: pulse 1s infinite; }
+
+/* ─── LOCKED / EMPTY STATES ──────────────────────────────── */
+.locked-state {
+  text-align: center; padding: 40px 20px;
+}
+.locked-icon { font-size: 38px; margin-bottom: 12px; }
+.locked-title {
+  font-family: var(--head); font-size: 16px; font-weight: 700;
+  color: var(--text); margin-bottom: 7px;
+}
+.locked-sub { font-size: 13px; color: var(--text2); max-width: 340px; margin: 0 auto; }
+.empty-state {
+  text-align: center; padding: 50px 20px;
+}
+.empty-icon { font-size: 32px; margin-bottom: 10px; }
+.empty-txt { font-size: 13px; color: var(--text2); }
+
+/* ─── AUDIT CARD ─────────────────────────────────────────── */
+.audit-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden; margin-bottom: 22px;
+}
+.audit-card-head {
+  padding: 15px 20px; background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 12px;
+}
+.audit-card-title {
+  font-family: var(--head); font-size: 16px; font-weight: 700;
+  margin-bottom: 4px; line-height: 1.3;
+}
+.audit-card-meta {
+  font-family: var(--mono); font-size: 11px; color: var(--text2);
+}
+.audit-card-body { padding: 20px; }
+
+/* ─── SUBMITTED BANNER ───────────────────────────────────── */
+.submitted-banner {
+  background: rgba(34,197,94,.07);
+  border: 1px solid rgba(34,197,94,.2);
+  border-radius: 8px; padding: 11px 15px;
+  margin-bottom: 18px; display: flex;
+  align-items: center; gap: 8px;
+  font-size: 13px; color: var(--green);
+}
+
+/* ─── STATS / PROGRESS ───────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px; margin-bottom: 22px;
+}
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+}
+.stat-val {
+  font-family: var(--head); font-size: 34px; font-weight: 800;
+  color: var(--text); line-height: 1; margin-bottom: 4px;
+}
+.stat-lbl { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+
+.progress-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px; margin-bottom: 14px;
+}
+.progress-card-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  margin-bottom: 14px;
+}
+.prog-item { margin-bottom: 12px; }
+.prog-item:last-child { margin-bottom: 0; }
+.prog-meta {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 5px;
+}
+.prog-name { font-size: 13px; color: var(--text); }
+.prog-count { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+.prog-bar {
+  height: 5px; background: var(--bg4);
+  border-radius: 100px; overflow: hidden;
+}
+.prog-fill {
+  height: 100%; border-radius: 100px;
+  transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+
+/* ─── ADMIN ──────────────────────────────────────────────── */
+.admin-section { margin-bottom: 32px; }
+.admin-section-title {
+  font-family: var(--head); font-size: 16px; font-weight: 700;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.add-form {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px; margin-bottom: 10px;
+}
+
+/* ─── TOAST ──────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 11px 18px;
+  font-size: 13px; color: var(--text);
+  box-shadow: 0 8px 28px rgba(0,0,0,.4);
+  z-index: 400; transform: translateY(16px); opacity: 0;
+  transition: all .25s; pointer-events: none;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.success { border-left: 3px solid var(--green); }
+#toast.error   { border-left: 3px solid var(--red); }
+#toast.info    { border-left: 3px solid var(--accent); }
+
+/* ─── MISC ───────────────────────────────────────────────── */
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+@keyframes spin   { to { transform: rotate(360deg); } }
+.spinner {
+  width: 22px; height: 22px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  margin: 0 auto 12px;
+}
+.loading-state { text-align: center; padding: 60px; color: var(--text2); font-family: var(--mono); font-size: 13px; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+@media (max-width: 600px) {
+  .app-content { padding: 18px 14px; }
+  .auth-card { padding: 28px 22px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  td, th { padding: 9px 10px; }
+  .avail-name { width: 110px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     AUTH SCREEN
+════════════════════════════════════════════════════ -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-wordmark">AI Audit<br><em>Tracker</em></div>
+    <div class="auth-sub">Mystery Shopping &amp; Course Audit Platform</div>
+
+    <div id="auth-error" class="error-msg"></div>
+
+    <!-- Login -->
+    <div id="login-form">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" id="li-email" type="email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="li-pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn btn-primary auth-submit-btn" onclick="doLogin()">Sign In</button>
+      <div class="auth-toggle">No account? <a onclick="toggleAuth('register')">Register here</a></div>
+    </div>
+
+    <!-- Register -->
+    <div id="register-form" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input class="form-input" id="rg-name" type="text" placeholder="Jane Smith" onkeydown="if(event.key==='Enter')doRegister()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" id="rg-email" type="email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doRegister()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="rg-pass" type="password" placeholder="Min. 6 characters" onkeydown="if(event.key==='Enter')doRegister()">
+      </div>
+      <button class="btn btn-primary auth-submit-btn" onclick="doRegister()">Create Account</button>
+      <div class="auth-toggle">Have an account? <a onclick="toggleAuth('login')">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════ -->
+<div id="app" class="hidden">
+
+  <header class="app-header">
+    <div class="app-wordmark">AI Audit <em>Tracker</em></div>
+    <div class="header-right">
+      <span class="header-admin-badge" id="hdr-admin" style="display:none">ADMIN</span>
+      <span class="header-user" id="hdr-user"></span>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()">Sign Out</button>
+    </div>
+  </header>
+
+  <nav class="app-nav">
+    <button class="nav-tab active" data-tab="courses"      onclick="switchTab('courses')">Courses</button>
+    <button class="nav-tab"        data-tab="myaudits"     onclick="switchTab('myaudits')">My Audits</button>
+    <button class="nav-tab"        data-tab="availability" onclick="switchTab('availability')">Availability</button>
+    <button class="nav-tab"        data-tab="progress"     onclick="switchTab('progress')">Progress</button>
+    <button class="nav-tab"        data-tab="admin" id="admin-nav-tab" style="display:none" onclick="switchTab('admin')">Admin</button>
+  </nav>
+
+  <main class="app-content">
+
+    <!-- COURSES TAB -->
+    <div class="tab-panel active" id="tab-courses">
+      <div class="page-title">Courses</div>
+      <div class="page-sub">Claim a course to audit. Tier 1 courses are highest priority.</div>
+      <div id="courses-content"><div class="loading-state"><div class="spinner"></div>Loading courses…</div></div>
+    </div>
+
+    <!-- MY AUDITS TAB -->
+    <div class="tab-panel" id="tab-myaudits">
+      <div class="page-title">My Audits</div>
+      <div class="page-sub">Your claimed courses and evaluation forms. Form unlocks after admin confirmation.</div>
+      <div id="myaudits-content"></div>
+    </div>
+
+    <!-- AVAILABILITY TAB -->
+    <div class="tab-panel" id="tab-availability">
+      <div class="page-title">Availability</div>
+      <div class="page-sub">Toggle your available days. Other auditors' availability shown as read-only.</div>
+      <div id="avail-content"></div>
+    </div>
+
+    <!-- PROGRESS TAB -->
+    <div class="tab-panel" id="tab-progress">
+      <div class="page-title">Progress</div>
+      <div class="page-sub">Overall completion, confirmed slots, and per-auditor workload.</div>
+      <div id="progress-content"></div>
+    </div>
+
+    <!-- ADMIN TAB -->
+    <div class="tab-panel" id="tab-admin">
+      <div class="page-title">Admin</div>
+      <div class="page-sub">Manage courses, confirm audit slots, and review submitted evaluations.</div>
+      <div id="admin-content"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     CLAIM MODAL
+════════════════════════════════════════════════════ -->
+<div id="modal-overlay" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Claim Course</div>
+      <button class="modal-x" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-amber" id="modal-confirm-btn">Confirm Claim</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     APPLICATION SCRIPT
+════════════════════════════════════════════════════ -->
+<script>
+// ─────────────────────────────────────────────────────────
+//  CONFIG — replace these with your Supabase project values
+// ─────────────────────────────────────────────────────────
+const SUPABASE_URL     = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+// ─────────────────────────────────────────────────────────
+//  SUPABASE CLIENT
+// ─────────────────────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ─────────────────────────────────────────────────────────
+//  APPLICATION STATE
+// ─────────────────────────────────────────────────────────
+const S = {
+  user: null,
+  profile: null,
+  courses: [],
+  audits: [],
+  profiles: [],
+  availability: [],
+  tab: 'courses',
+  filters: { status: '', tier: '', arch: '' },
+  // In-memory form edits (auditId → {key:value,...})
+  formEdits: {},
+  // Autosave timers
+  saveTimers: {},
+  // Pending claim
+  pendingClaim: { courseId: null, date: '' }
+};
+
+// ─────────────────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────────────────
+async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    S.user = session.user;
+    await loadAll();
+    showApp();
+  } else {
+    showAuthScreen();
+  }
+
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      S.user = session.user;
+      await loadAll();
+      showApp();
+    } else if (event === 'SIGNED_OUT') {
+      S.user = null; S.profile = null;
+      showAuthScreen();
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+//  AUTH
+// ─────────────────────────────────────────────────────────
+async function doLogin() {
+  const email = qs('#li-email').value.trim();
+  const pass  = qs('#li-pass').value;
+  if (!email || !pass) return setAuthErr('Please fill in all fields.');
+  setAuthLoading(true);
+  const { error } = await db.auth.signInWithPassword({ email, password: pass });
+  setAuthLoading(false);
+  if (error) setAuthErr(error.message);
+}
+
+async function doRegister() {
+  const name  = qs('#rg-name').value.trim();
+  const email = qs('#rg-email').value.trim();
+  const pass  = qs('#rg-pass').value;
+  if (!name || !email || !pass) return setAuthErr('Please fill in all fields.');
+  if (pass.length < 6) return setAuthErr('Password must be at least 6 characters.');
+  setAuthLoading(true);
+  const { error } = await db.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: name } }
+  });
+  setAuthLoading(false);
+  if (error) setAuthErr(error.message);
+  else toast('Account created! Welcome aboard.', 'success');
+}
+
+async function doLogout() {
+  await db.auth.signOut();
+}
+
+function toggleAuth(mode) {
+  qs('#login-form').style.display    = mode === 'login'    ? 'block' : 'none';
+  qs('#register-form').style.display = mode === 'register' ? 'block' : 'none';
+  setAuthErr('');
+}
+
+function setAuthErr(msg) {
+  const el = qs('#auth-error');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function setAuthLoading(on) {
+  qsa('.auth-submit-btn').forEach(b => b.disabled = on);
+}
+
+// ─────────────────────────────────────────────────────────
+//  DATA LOADING
+// ─────────────────────────────────────────────────────────
+async function loadAll() {
+  const [cR, aR, pR, avR] = await Promise.all([
+    db.from('courses').select('*').order('pick').order('name'),
+    db.from('audits').select('*'),
+    db.from('profiles').select('*'),
+    db.from('availability').select('*')
+  ]);
+  S.courses      = cR.data  || [];
+  S.audits       = aR.data  || [];
+  S.profiles     = pR.data  || [];
+  S.availability = avR.data || [];
+  S.profile      = S.profiles.find(p => p.id === S.user?.id) || null;
+}
+
+async function reload() {
+  await loadAll();
+  render();
+}
+
+// ─────────────────────────────────────────────────────────
+//  NAVIGATION
+// ─────────────────────────────────────────────────────────
+function switchTab(tab) {
+  S.tab = tab;
+  qsa('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  render();
+}
+
+// ─────────────────────────────────────────────────────────
+//  RENDER DISPATCHER
+// ─────────────────────────────────────────────────────────
+function render() {
+  const map = {
+    courses: 'tab-courses', myaudits: 'tab-myaudits',
+    availability: 'tab-availability', progress: 'tab-progress', admin: 'tab-admin'
+  };
+  Object.values(map).forEach(id => qs('#' + id)?.classList.remove('active'));
+  qs('#' + map[S.tab])?.classList.add('active');
+  switch (S.tab) {
+    case 'courses':      renderCourses(); break;
+    case 'myaudits':     renderMyAudits(); break;
+    case 'availability': renderAvailability(); break;
+    case 'progress':     renderProgress(); break;
+    case 'admin':        renderAdmin(); break;
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+//  COURSES TAB
+// ─────────────────────────────────────────────────────────
+function renderCourses() {
+  let courses = [...S.courses];
+  if (S.filters.status) courses = courses.filter(c => c.status === S.filters.status);
+  if (S.filters.tier)   courses = courses.filter(c => c.pick  === parseInt(S.filters.tier));
+  if (S.filters.arch)   courses = courses.filter(c => c.archetype === S.filters.arch);
+
+  const rows = courses.map(c => {
+    const courseAudits = S.audits.filter(a => a.course_id === c.id);
+    const myAudit      = courseAudits.find(a => a.user_id === S.user?.id);
+    const auditorNames = courseAudits
+      .map(a => profile(a.user_id)?.full_name)
+      .filter(Boolean);
+
+    const tierBadge = `<span class="badge b-t${c.pick}">Tier ${c.pick}</span>`;
+    const statusBadge = badgeHtml(c.status);
+    const chips = auditorNames.length
+      ? `<div class="auditor-chips">${auditorNames.map(n =>
+          `<span class="auditor-chip">${esc(n)}</span>`).join('')}</div>`
+      : `<span style="color:var(--text3);font-size:12px">—</span>`;
+
+    let action;
+    if (!S.user) {
+      action = `<span style="color:var(--text3);font-size:12px">Login to claim</span>`;
+    } else if (myAudit?.submitted_at) {
+      action = `<span class="badge b-completed">Submitted</span>`;
+    } else if (myAudit) {
+      action = `<button class="btn btn-red btn-sm" onclick="doUnclaim('${c.id}')">Unclaim</button>`;
+    } else {
+      action = `<button class="btn btn-amber btn-sm" onclick="openClaimModal('${c.id}')">Claim</button>`;
+    }
+
+    return `<tr>
+      <td><div style="font-weight:500;max-width:300px;line-height:1.35">${esc(c.name)}</div></td>
+      <td>${tierBadge}</td>
+      <td><span style="font-size:12px;color:var(--text2)">${esc(c.archetype)}</span></td>
+      <td>${chips}</td>
+      <td>${statusBadge}</td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+
+  qs('#courses-content').innerHTML = `
+    <div class="filters">
+      <select class="filter-select" onchange="S.filters.status=this.value;renderCourses()">
+        <option value="">All Statuses</option>
+        ${['Unassigned','Claimed','Confirmed','Completed'].map(s =>
+          `<option value="${s}" ${S.filters.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <select class="filter-select" onchange="S.filters.tier=this.value;renderCourses()">
+        <option value="">All Tiers</option>
+        ${[1,2,3].map(t => `<option value="${t}" ${S.filters.tier==t?'selected':''}>Tier ${t}</option>`).join('')}
+      </select>
+      <select class="filter-select" onchange="S.filters.arch=this.value;renderCourses()">
+        <option value="">All Archetypes</option>
+        ${['AI Literate Workers','AI Fluent Workers','AI Fluent Biz Leaders'].map(a =>
+          `<option value="${a}" ${S.filters.arch===a?'selected':''}>${a}</option>`).join('')}
+      </select>
+      <span style="color:var(--text3);font-size:12px;margin-left:4px">${courses.length} course${courses.length!==1?'s':''}</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Course Name</th><th>Tier</th><th>Archetype</th>
+          <th>Auditors</th><th>Status</th><th>Action</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-txt">No courses match the current filters.</div></div></td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  CLAIM MODAL
+// ─────────────────────────────────────────────────────────
+function openClaimModal(courseId) {
+  const course = S.courses.find(c => c.id === courseId);
+  if (!course) return;
+  S.pendingClaim = { courseId, date: '' };
+
+  const dates = parseRunDates(course.next_run);
+  const options = dates.map((d, i) => `
+    <label class="radio-option" id="ro-${i}">
+      <input type="radio" name="claim-date" value="${esc(d)}"
+        onchange="S.pendingClaim.date=this.value;
+          document.querySelectorAll('.radio-option').forEach(e=>e.classList.remove('selected'));
+          document.getElementById('ro-${i}').classList.add('selected')">
+      <span class="radio-label">${esc(d)}</span>
+    </label>`).join('');
+
+  qs('#modal-title').textContent = 'Claim Course';
+  qs('#modal-body').innerHTML = `
+    <div class="modal-course-name">${esc(course.name)}</div>
+    <div class="modal-section-label">Select a run date</div>
+    <div class="radio-group">${options}</div>`;
+  qs('#modal-confirm-btn').onclick = () => confirmClaim();
+  qs('#modal-overlay').classList.add('open');
+}
+
+async function confirmClaim() {
+  if (!S.pendingClaim.date) return toast('Please select a run date.', 'error');
+  const { courseId, date } = S.pendingClaim;
+
+  const { error } = await db.from('audits').insert({
+    course_id: courseId,
+    user_id: S.user.id,
+    preferred_date: date,
+    confirmed: false,
+    responses: {}
+  });
+  if (error) return toast(error.message, 'error');
+
+  const course = S.courses.find(c => c.id === courseId);
+  if (course?.status === 'Unassigned') {
+    await db.from('courses').update({ status: 'Claimed' }).eq('id', courseId);
+  }
+
+  closeModal();
+  toast('Course claimed! Awaiting admin confirmation.', 'success');
+  await reload();
+}
+
+async function doUnclaim(courseId) {
+  if (!confirm('Unclaim this course? Any saved responses will be lost.')) return;
+  const { error } = await db.from('audits')
+    .delete()
+    .eq('course_id', courseId)
+    .eq('user_id', S.user.id);
+  if (error) return toast(error.message, 'error');
+
+  // Recalculate course status based on remaining audits
+  const remaining = S.audits.filter(a => a.course_id === courseId && a.user_id !== S.user.id);
+  let newStatus = 'Unassigned';
+  if (remaining.length) {
+    if (remaining.some(a => a.submitted_at)) newStatus = 'Completed';
+    else if (remaining.some(a => a.confirmed)) newStatus = 'Confirmed';
+    else newStatus = 'Claimed';
+  }
+  await db.from('courses').update({ status: newStatus }).eq('id', courseId);
+
+  toast('Course unclaimed.', 'info');
+  await reload();
+}
+
+function closeModal() {
+  qs('#modal-overlay').classList.remove('open');
+  S.pendingClaim = { courseId: null, date: '' };
+}
+
+// ─────────────────────────────────────────────────────────
+//  MY AUDITS TAB
+// ─────────────────────────────────────────────────────────
+function renderMyAudits() {
+  const myAudits = S.audits.filter(a => a.user_id === S.user?.id);
+  const el = qs('#myaudits-content');
+
+  if (!myAudits.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📝</div>
+      <div class="empty-txt">You haven't claimed any courses yet.<br>Go to the <strong>Courses</strong> tab to get started.</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = myAudits.map(audit => {
+    const course = S.courses.find(c => c.id === audit.course_id);
+    if (!course) return '';
+    return `
+      <div class="audit-card">
+        <div class="audit-card-head">
+          <div>
+            <div class="audit-card-title">${esc(course.name)}</div>
+            <div class="audit-card-meta">${esc(course.tgs_number||'')} · Tier ${course.pick} · Preferred: ${esc(audit.preferred_date||'—')}</div>
+          </div>
+          <div>${badgeHtml(course.status)}</div>
+        </div>
+        <div class="audit-card-body">${buildFormHtml(audit, course)}</div>
+      </div>`;
+  }).join('');
+}
+
+function buildFormHtml(audit, course) {
+  if (audit.submitted_at) return buildSubmittedHtml(audit);
+  if (!audit.confirmed) return `
+    <div class="locked-state">
+      <div class="locked-icon">⏳</div>
+      <div class="locked-title">Awaiting Admin Confirmation</div>
+      <div class="locked-sub">Your slot request has been submitted. An admin will confirm it before your evaluation form unlocks.</div>
+    </div>`;
+  return buildActiveFormHtml(audit, course);
+}
+
+function buildActiveFormHtml(audit, course) {
+  const r = { ...(audit.responses||{}), ...(S.formEdits[audit.id]||{}) };
+  const id = audit.id;
+
+  const ratingRow = (key, opts) => `
+    <div class="rating-btns">${opts.map(o =>
+      `<button class="r-btn ${r[key]===o?'sel':''}" onclick="onRatingClick('${id}','${key}','${esc(o)}',this)">${esc(o)}</button>`
+    ).join('')}</div>`;
+
+  const textArea = (key, ph, rows=3) =>
+    `<textarea class="eval-ta" rows="${rows}" placeholder="${ph}" oninput="onTextInput('${id}','${key}',this.value)">${esc(r[key]||'')}</textarea>`;
+
+  return `
+    <div class="eval-form" id="form-${id}">
+
+      <div class="eval-section">
+        <div class="eval-sec-head"><span class="eval-sec-code">A</span><span class="eval-sec-title">Industry Alignment</span></div>
+        <div class="eval-sec-body">
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">A1</span> Alignment with current industry AI trends</div>
+            ${ratingRow('a1', ['Poor','Limited','Moderate','Strong','Excellent'])}
+          </div>
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">A2</span> Key industry trends or gaps observed</div>
+            ${textArea('a2', 'Describe key AI industry trends and gaps relevant to this course…')}
+          </div>
+        </div>
+      </div>
+
+      <div class="eval-section">
+        <div class="eval-sec-head"><span class="eval-sec-code">B</span><span class="eval-sec-title">AI Proficiency Level</span></div>
+        <div class="eval-sec-body">
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">B1</span> Difficulty level relative to stated target audience</div>
+            ${ratingRow('b1', ['Significantly below','Below','Appropriate','Above','Significantly above'])}
+          </div>
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">B2</span> Differentiation between beginner and advanced learners</div>
+            ${ratingRow('b2', ['No differentiation','Limited','Clear','Excellent'])}
+          </div>
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">B3</span> Evidence and observations</div>
+            ${textArea('b3', 'Describe specific evidence supporting your ratings above…')}
+          </div>
+        </div>
+      </div>
+
+      <div class="eval-section">
+        <div class="eval-sec-head"><span class="eval-sec-code">C</span><span class="eval-sec-title">Skills Progression</span></div>
+        <div class="eval-sec-body">
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">C1</span> Does this course fill identified skills gaps?</div>
+            ${ratingRow('c1', ['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'])}
+          </div>
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">C2</span> AI tools and platforms covered</div>
+            ${textArea('c2_tools', 'List all AI tools and platforms taught in this course…', 2)}
+          </div>
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">C3</span> Currency and relevance of tools covered</div>
+            ${ratingRow('c3', ['Outdated','Basic','Current','Advanced','Cutting-edge'])}
+          </div>
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">C4</span> Remaining skills gaps after this course</div>
+            ${textArea('c4', 'Describe significant skills gaps this course does not address…')}
+          </div>
+        </div>
+      </div>
+
+      <div class="eval-section">
+        <div class="eval-sec-head"><span class="eval-sec-code">D</span><span class="eval-sec-title">Overall Assessment</span></div>
+        <div class="eval-sec-body">
+          <div class="eval-field">
+            <div class="eval-field-label"><span class="field-code">D1</span> Recommendation</div>
+            ${ratingRow('d1', ['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'])}
+          </div>
+        </div>
+      </div>
+
+      <div class="eval-form-footer">
+        <div class="autosave" id="as-${id}">
+          <div class="as-dot" id="as-dot-${id}"></div>
+          <span id="as-txt-${id}">All changes saved</span>
+        </div>
+        <button class="btn btn-green" onclick="submitAudit('${id}','${course.id}')">
+          Submit Evaluation →
+        </button>
+      </div>
+    </div>`;
+}
+
+function buildSubmittedHtml(audit) {
+  const r = audit.responses || {};
+  const d = new Date(audit.submitted_at).toLocaleDateString('en-SG',
+    { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const roRating = (opts, key) => {
+    if (!r[key]) return `<span style="color:var(--text3)">—</span>`;
+    return `<div class="rating-btns">${opts.map(o =>
+      `<button class="r-btn ${r[key]===o?'sel':''}" disabled>${esc(o)}</button>`
+    ).join('')}</div>`;
+  };
+  const roText = key => r[key]
+    ? `<div style="font-size:13px;color:var(--text2);background:var(--bg3);padding:9px 13px;border-radius:8px;border:1px solid var(--border)">${esc(r[key])}</div>`
+    : `<span style="color:var(--text3)">—</span>`;
+
+  return `
+    <div class="submitted-banner"><span>✓</span><span>Submitted on ${d}</span></div>
+    <div class="eval-form">
+      <div class="eval-section">
+        <div class="eval-sec-head"><span class="eval-sec-code">A</span><span class="eval-sec-title">Industry Alignment</span></div>
+        <div class="eval-sec-body">
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">A1</span> Alignment rating</div>
+            ${roRating(['Poor','Limited','Moderate','Strong','Excellent'],'a1')}</div>
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">A2</span> Key trends</div>${roText('a2')}</div>
+        </div>
+      </div>
+      <div class="eval-section">
+        <div class="eval-sec-head"><span class="eval-sec-code">B</span><span class="eval-sec-title">AI Proficiency Level</span></div>
+        <div class="eval-sec-body">
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">B1</span> Difficulty</div>
+            ${roRating(['Significantly below','Below','Appropriate','Above','Significantly above'],'b1')}</div>
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">B2</span> Differentiation</div>
+            ${roRating(['No differentiation','Limited','Clear','Excellent'],'b2')}</div>
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">B3</span> Evidence</div>${roText('b3')}</div>
+        </div>
+      </div>
+      <div class="eval-section">
+        <div class="eval-sec-head"><span class="eval-sec-code">C</span><span class="eval-sec-title">Skills Progression</span></div>
+        <div class="eval-sec-body">
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">C1</span> Gaps filled</div>
+            ${roRating(['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'],'c1')}</div>
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> Tools covered</div>${roText('c2_tools')}</div>
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> Tool currency</div>
+            ${roRating(['Outdated','Basic','Current','Advanced','Cutting-edge'],'c3')}</div>
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Remaining gaps</div>${roText('c4')}</div>
+        </div>
+      </div>
+      <div class="eval-section">
+        <div class="eval-sec-head"><span class="eval-sec-code">D</span><span class="eval-sec-title">Overall Assessment</span></div>
+        <div class="eval-sec-body">
+          <div class="eval-field"><div class="eval-field-label"><span class="field-code">D1</span> Recommendation</div>
+            ${roRating(['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'],'d1')}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  FORM INPUT HANDLERS
+// ─────────────────────────────────────────────────────────
+function onRatingClick(auditId, key, value, btn) {
+  btn.closest('.rating-btns').querySelectorAll('.r-btn').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  setEdit(auditId, key, value);
+  scheduleAutosave(auditId);
+}
+
+function onTextInput(auditId, key, value) {
+  setEdit(auditId, key, value);
+  scheduleAutosave(auditId);
+}
+
+function setEdit(auditId, key, value) {
+  if (!S.formEdits[auditId]) S.formEdits[auditId] = {};
+  S.formEdits[auditId][key] = value;
+}
+
+function scheduleAutosave(auditId) {
+  setSaveStatus(auditId, 'saving');
+  clearTimeout(S.saveTimers[auditId]);
+  S.saveTimers[auditId] = setTimeout(() => doAutosave(auditId), 1500);
+}
+
+async function doAutosave(auditId) {
+  const audit = S.audits.find(a => a.id === auditId);
+  if (!audit) return;
+  const merged = { ...(audit.responses||{}), ...(S.formEdits[auditId]||{}) };
+  const { error } = await db.from('audits').update({ responses: merged }).eq('id', auditId);
+  if (!error) {
+    const idx = S.audits.findIndex(a => a.id === auditId);
+    if (idx >= 0) S.audits[idx].responses = merged;
+  }
+  setSaveStatus(auditId, error ? 'error' : 'saved');
+}
+
+function setSaveStatus(auditId, st) {
+  const dot = qs('#as-dot-' + auditId);
+  const txt = qs('#as-txt-' + auditId);
+  if (!dot || !txt) return;
+  if (st === 'saving') {
+    dot.classList.add('saving');
+    txt.textContent = 'Saving…';
+  } else {
+    dot.classList.remove('saving');
+    txt.textContent = st === 'error' ? '⚠ Save failed' : 'All changes saved';
+  }
+}
+
+async function submitAudit(auditId, courseId) {
+  if (!confirm('Submit this evaluation? The form will be locked permanently after submission.')) return;
+  const audit = S.audits.find(a => a.id === auditId);
+  const final = { ...(audit?.responses||{}), ...(S.formEdits[auditId]||{}) };
+
+  const { error } = await db.from('audits').update({
+    responses: final,
+    submitted_at: new Date().toISOString()
+  }).eq('id', auditId);
+  if (error) return toast(error.message, 'error');
+
+  await db.from('courses').update({ status: 'Completed' }).eq('id', courseId);
+  toast('Evaluation submitted successfully!', 'success');
+  delete S.formEdits[auditId];
+  await reload();
+}
+
+// ─────────────────────────────────────────────────────────
+//  AVAILABILITY TAB
+// ─────────────────────────────────────────────────────────
+function renderAvailability() {
+  const DAYS = ['Mon','Tue','Wed','Thu','Fri'];
+  const el = qs('#avail-content');
+
+  if (!S.profiles.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-txt">No users found.</div></div>`;
+    return;
+  }
+
+  const rows = S.profiles.map(p => {
+    const isMe  = p.id === S.user?.id;
+    const avail = S.availability.find(a => a.user_id === p.id);
+    const active = avail?.days || [];
+    const btns = DAYS.map(d => {
+      const on = active.includes(d);
+      if (isMe) return `<button class="day-btn ${on?'on':''}" onclick="toggleDay('${d}')">${d}</button>`;
+      return `<button class="day-btn ${on?'on-ro':''}" disabled>${d}</button>`;
+    }).join('');
+    return `<div class="avail-row">
+      <div class="avail-name ${isMe?'me':''}">${esc(p.full_name)}${isMe?' <span style="font-size:11px;color:var(--text3)">(you)</span>':''}</div>
+      <div class="day-group">${btns}</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="avail-list">${rows}</div>`;
+}
+
+async function toggleDay(day) {
+  const avail = S.availability.find(a => a.user_id === S.user.id);
+  let days = avail ? [...avail.days] : [];
+  days = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
+
+  if (avail) {
+    await db.from('availability').update({ days, updated_at: new Date().toISOString() })
+      .eq('user_id', S.user.id);
+  } else {
+    await db.from('availability').insert({ user_id: S.user.id, days });
+  }
+  await reload();
+}
+
+// ─────────────────────────────────────────────────────────
+//  PROGRESS TAB
+// ─────────────────────────────────────────────────────────
+function renderProgress() {
+  const el = qs('#progress-content');
+  const total       = S.courses.length;
+  const completed   = S.courses.filter(c => c.status === 'Completed').length;
+  const submitted   = S.audits.filter(a => a.submitted_at).length;
+  const confirmed   = S.audits.filter(a => a.confirmed).length;
+  const activeAuditors = new Set(S.audits.map(a => a.user_id)).size;
+  const pct = total ? Math.round(completed / total * 100) : 0;
+
+  const tierRows = [1,2,3].map(t => {
+    const tc = S.courses.filter(c => c.pick === t);
+    const done = tc.filter(c => c.status === 'Completed').length;
+    const p = tc.length ? Math.round(done / tc.length * 100) : 0;
+    const col = t===1 ? 'var(--accent)' : t===2 ? 'var(--purple)' : 'var(--text3)';
+    return `<div class="prog-item">
+      <div class="prog-meta">
+        <span class="prog-name">Tier ${t}</span>
+        <span class="prog-count">${done}/${tc.length} · ${p}%</span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${p}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+
+  const archs = [...new Set(S.courses.map(c => c.archetype))];
+  const archRows = archs.map(a => {
+    const ac = S.courses.filter(c => c.archetype === a);
+    const done = ac.filter(c => c.status === 'Completed').length;
+    const p = ac.length ? Math.round(done / ac.length * 100) : 0;
+    return `<div class="prog-item">
+      <div class="prog-meta">
+        <span class="prog-name" style="font-size:12px">${esc(a)}</span>
+        <span class="prog-count">${done}/${ac.length} · ${p}%</span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${p}%;background:var(--green)"></div></div>
+    </div>`;
+  }).join('');
+
+  const auditorStats = S.profiles.map(p => {
+    const ua = S.audits.filter(a => a.user_id === p.id);
+    if (!ua.length) return null;
+    return {
+      name: p.full_name,
+      claimed: ua.length,
+      confirmed: ua.filter(a => a.confirmed).length,
+      submitted: ua.filter(a => a.submitted_at).length
+    };
+  }).filter(Boolean);
+
+  const auditorRows = auditorStats.map(a => `<tr>
+    <td>${esc(a.name)}</td>
+    <td><span class="badge b-claimed">${a.claimed}</span></td>
+    <td><span class="badge b-confirmed">${a.confirmed}</span></td>
+    <td><span class="badge b-completed">${a.submitted}</span></td>
+  </tr>`).join('');
+
+  el.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val">${pct}%</div><div class="stat-lbl">Overall Completion</div></div>
+      <div class="stat-card"><div class="stat-val">${confirmed}</div><div class="stat-lbl">Confirmed Slots</div></div>
+      <div class="stat-card"><div class="stat-val">${submitted}</div><div class="stat-lbl">Reports Submitted</div></div>
+      <div class="stat-card"><div class="stat-val">${activeAuditors}</div><div class="stat-lbl">Active Auditors</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px">
+      <div class="progress-card">
+        <div class="progress-card-title">Progress by Tier</div>
+        ${tierRows || '<span style="color:var(--text3);font-size:13px">No data yet</span>'}
+      </div>
+      <div class="progress-card">
+        <div class="progress-card-title">Progress by Archetype</div>
+        ${archRows || '<span style="color:var(--text3);font-size:13px">No data yet</span>'}
+      </div>
+    </div>
+    ${auditorStats.length ? `
+    <div class="progress-card">
+      <div class="progress-card-title">Auditor Workload</div>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th>Auditor</th><th>Claimed</th><th>Confirmed</th><th>Submitted</th></tr></thead>
+          <tbody>${auditorRows}</tbody>
+        </table>
+      </div>
+    </div>` : ''}`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  ADMIN TAB
+// ─────────────────────────────────────────────────────────
+function renderAdmin() {
+  const el = qs('#admin-content');
+  if (!S.profile?.is_admin) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-txt">Admin access required. Ask an existing admin to grant you access via the Supabase dashboard.</div></div>`;
+    return;
+  }
+
+  const pending  = S.audits.filter(a => !a.confirmed && !a.submitted_at);
+  const submitted = S.audits.filter(a => a.submitted_at);
+
+  const pendingRows = pending.map(a => {
+    const c = S.courses.find(x => x.id === a.course_id);
+    const p = profile(a.user_id);
+    return `<tr>
+      <td>${esc(p?.full_name||'—')}</td>
+      <td style="max-width:280px">${esc(c?.name||'—')}</td>
+      <td>${esc(a.preferred_date||'—')}</td>
+      <td>${esc(c?.course_fee||'—')}</td>
+      <td><button class="btn btn-green btn-sm" onclick="adminConfirm('${a.id}','${a.course_id}')">Confirm</button></td>
+    </tr>`;
+  }).join('');
+
+  const submittedRows = submitted.map(a => {
+    const c = S.courses.find(x => x.id === a.course_id);
+    const p = profile(a.user_id);
+    const d = new Date(a.submitted_at).toLocaleDateString('en-SG', { day:'numeric', month:'short' });
+    return `<tr>
+      <td>${esc(p?.full_name||'—')}</td>
+      <td style="max-width:260px">${esc(c?.name||'—')}</td>
+      <td>${d}</td>
+      <td><span style="font-size:12px;color:var(--text2)">${esc(a.responses?.d1||'—')}</span></td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="admin-section">
+      <div class="admin-section-title">Add New Course</div>
+      <div class="add-form">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">TGS Number</label>
+            <input class="form-input" id="nc-tgs" placeholder="TGS-2024000000"></div>
+          <div class="form-group"><label class="form-label">Course Name *</label>
+            <input class="form-input" id="nc-name" placeholder="Provider: Course Name"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Tier</label>
+            <select class="form-input" id="nc-tier">
+              <option value="1">Tier 1</option>
+              <option value="2">Tier 2</option>
+              <option value="3">Tier 3</option>
+            </select></div>
+          <div class="form-group"><label class="form-label">Archetype</label>
+            <select class="form-input" id="nc-arch">
+              <option>AI Literate Workers</option>
+              <option>AI Fluent Workers</option>
+              <option>AI Fluent Biz Leaders</option>
+            </select></div>
+          <div class="form-group"><label class="form-label">Course Fee</label>
+            <input class="form-input" id="nc-fee" placeholder="$300"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Run Dates (comma-separated)</label>
+            <input class="form-input" id="nc-dates" placeholder="1-3 May, 15-17 May, TBC"></div>
+        </div>
+        <button class="btn btn-primary" style="width:auto;min-width:140px" onclick="adminAddCourse()">Add Course</button>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-title">Pending Confirmations (${pending.length})</div>
+      ${pending.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Auditor</th><th>Course</th><th>Preferred Date</th><th>Fee</th><th>Action</th></tr></thead>
+            <tbody>${pendingRows}</tbody>
+          </table>
+        </div>` : `<p style="color:var(--text2);font-size:13px">No pending confirmations.</p>`}
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-title">Submitted Evaluations (${submitted.length})</div>
+      ${submitted.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Auditor</th><th>Course</th><th>Submitted</th><th>Recommendation</th></tr></thead>
+            <tbody>${submittedRows}</tbody>
+          </table>
+        </div>` : `<p style="color:var(--text2);font-size:13px">No submitted evaluations yet.</p>`}
+    </div>`;
+}
+
+async function adminConfirm(auditId, courseId) {
+  const { error } = await db.from('audits').update({ confirmed: true }).eq('id', auditId);
+  if (error) return toast(error.message, 'error');
+  await db.from('courses').update({ status: 'Confirmed' }).eq('id', courseId);
+  toast('Slot confirmed!', 'success');
+  await reload();
+}
+
+async function adminAddCourse() {
+  const name  = qs('#nc-name').value.trim();
+  if (!name) return toast('Course name is required.', 'error');
+  const { error } = await db.from('courses').insert({
+    tgs_number: qs('#nc-tgs').value.trim() || null,
+    name,
+    pick: parseInt(qs('#nc-tier').value),
+    archetype: qs('#nc-arch').value,
+    status: 'Unassigned',
+    next_run: qs('#nc-dates').value.trim() || 'TBC',
+    course_fee: qs('#nc-fee').value.trim() || '—'
+  });
+  if (error) return toast(error.message, 'error');
+  ['nc-tgs','nc-name','nc-fee','nc-dates'].forEach(id => { qs('#'+id).value = ''; });
+  toast('Course added!', 'success');
+  await reload();
+}
+
+// ─────────────────────────────────────────────────────────
+//  SCREEN SWITCHING
+// ─────────────────────────────────────────────────────────
+function showAuthScreen() {
+  qs('#auth-screen').classList.remove('hidden');
+  qs('#app').classList.add('hidden');
+}
+
+function showApp() {
+  qs('#auth-screen').classList.add('hidden');
+  qs('#app').classList.remove('hidden');
+  qs('#hdr-user').textContent = S.profile?.full_name || S.user?.email || 'User';
+  qs('#hdr-admin').style.display = S.profile?.is_admin ? '' : 'none';
+  qs('#admin-nav-tab').style.display = S.profile?.is_admin ? '' : 'none';
+  S.tab = 'courses';
+  qsa('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'courses'));
+  render();
+}
+
+// ─────────────────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────────────────
+function profile(userId) { return S.profiles.find(p => p.id === userId); }
+
+function badgeHtml(status) {
+  const cls = { Unassigned:'b-unassigned', Claimed:'b-claimed', Confirmed:'b-confirmed', Completed:'b-completed' }[status] || 'b-unassigned';
+  return `<span class="badge ${cls}">${esc(status)}</span>`;
+}
+
+function parseRunDates(nextRun) {
+  if (!nextRun || nextRun === 'TBC' || nextRun === '—')
+    return ['TBC – Date to be confirmed'];
+  return nextRun.split(',').map(d => d.trim()).filter(Boolean);
+}
+
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function qs(sel)  { return document.querySelector(sel); }
+function qsa(sel) { return document.querySelectorAll(sel); }
+
+let _toastT;
+function toast(msg, type='info') {
+  const el = qs('#toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// Close modal on backdrop click
+document.addEventListener('click', e => {
+  if (e.target.id === 'modal-overlay') closeModal();
+});
+
+// ─────────────────────────────────────────────────────────
+//  BOOTSTRAP
+// ─────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
