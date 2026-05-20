@@ -278,8 +278,25 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 .b-claimed    { background: rgba(240,165,0,.1);  color: #fbbf24; border-color: rgba(240,165,0,.22); }
 .b-confirmed  { background: rgba(74,143,255,.1); color: #7bb3ff; border-color: rgba(74,143,255,.22); }
 .b-completed  { background: rgba(34,197,94,.1);  color: #4ade80; border-color: rgba(34,197,94,.22); }
+.b-recommended { background: rgba(251,191,36,.1); color: #fbbf24; border-color: rgba(251,191,36,.25); }
 
-.auditor-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+/* star toggle */
+.star-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; line-height: 1; padding: 0 2px;
+  opacity: .35; transition: opacity .15s, transform .15s;
+  vertical-align: middle;
+}
+.star-btn:hover { opacity: .75; transform: scale(1.2); }
+.star-btn.starred { opacity: 1; filter: drop-shadow(0 0 4px rgba(251,191,36,.5)); }
+.filter-star-btn {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 14px;
+  font-size: 13px; color: var(--text2);
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.filter-star-btn:hover { border-color: #fbbf24; color: #fbbf24; }
+.filter-star-btn.active { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.4); color: #fbbf24; }
 .auditor-chip {
   background: var(--bg3); border: 1px solid var(--border);
   border-radius: 100px; padding: 2px 8px;
@@ -718,8 +735,8 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 // ─────────────────────────────────────────────────────────
 //  CONFIG — replace these with your Supabase project values
 // ─────────────────────────────────────────────────────────
-const SUPABASE_URL     = 'https://vyumfmobgffsnmtenkwy.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5dW1mbW9iZ2Zmc25tdGVua3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMjEzNDAsImV4cCI6MjA5NDc5NzM0MH0.hmLj7Q2-EtnZKYqBjGrqw5pf2GYSqIXpkGOrYtfnRFQ';
+const SUPABASE_URL     = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 // ─────────────────────────────────────────────────────────
 //  SUPABASE CLIENT
@@ -738,7 +755,7 @@ const S = {
   profiles: [],
   availability: [],
   tab: 'courses',
-  filters: { status: '', tier: '', arch: '' },
+  filters: { status: '', tier: '', arch: '', recommended: false },
   // In-memory form edits (auditId → {key:value,...})
   formEdits: {},
   // Autosave timers
@@ -876,9 +893,12 @@ function render() {
 // ─────────────────────────────────────────────────────────
 function renderCourses() {
   let courses = [...S.courses];
-  if (S.filters.status) courses = courses.filter(c => c.status === S.filters.status);
-  if (S.filters.tier)   courses = courses.filter(c => c.pick  === parseInt(S.filters.tier));
-  if (S.filters.arch)   courses = courses.filter(c => c.archetype === S.filters.arch);
+  if (S.filters.status)      courses = courses.filter(c => c.status === S.filters.status);
+  if (S.filters.tier)        courses = courses.filter(c => c.pick  === parseInt(S.filters.tier));
+  if (S.filters.arch)        courses = courses.filter(c => c.archetype === S.filters.arch);
+  if (S.filters.recommended) courses = courses.filter(c => c.recommended);
+
+  const isAdmin = !!S.profile?.is_admin;
 
   const rows = courses.map(c => {
     const courseAudits = S.audits.filter(a => a.course_id === c.id);
@@ -887,12 +907,17 @@ function renderCourses() {
       .map(a => profile(a.user_id)?.full_name)
       .filter(Boolean);
 
-    const tierBadge = `<span class="badge b-t${c.pick}">Tier ${c.pick}</span>`;
+    const tierBadge   = `<span class="badge b-t${c.pick}">Tier ${c.pick}</span>`;
     const statusBadge = badgeHtml(c.status);
     const chips = auditorNames.length
       ? `<div class="auditor-chips">${auditorNames.map(n =>
           `<span class="auditor-chip">${esc(n)}</span>`).join('')}</div>`
       : `<span style="color:var(--text3);font-size:12px">—</span>`;
+
+    // star: admins can click to toggle, others see it read-only
+    const starBtn = isAdmin
+      ? `<button class="star-btn${c.recommended?' starred':''}" title="${c.recommended?'Remove recommendation':'Mark as recommended'}" onclick="toggleRecommended('${c.id}',${c.recommended})">${c.recommended?'⭐':'☆'}</button>`
+      : (c.recommended ? `<span title="Recommended" style="font-size:15px;vertical-align:middle">⭐</span>` : '');
 
     let action;
     if (!S.user) {
@@ -905,8 +930,8 @@ function renderCourses() {
       action = `<button class="btn btn-amber btn-sm" onclick="openClaimModal('${c.id}')">Claim</button>`;
     }
 
-    return `<tr>
-      <td><div style="font-weight:500;max-width:300px;line-height:1.35">${esc(c.name)}</div></td>
+    return `<tr${c.recommended?' style="background:rgba(251,191,36,.03)"':''}>
+      <td><div style="font-weight:500;max-width:300px;line-height:1.35;display:flex;align-items:center;gap:6px">${starBtn}<span>${esc(c.name)}</span></div></td>
       <td>${tierBadge}</td>
       <td><span style="font-size:12px;color:var(--text2)">${esc(c.archetype)}</span></td>
       <td>${chips}</td>
@@ -914,6 +939,8 @@ function renderCourses() {
       <td>${action}</td>
     </tr>`;
   }).join('');
+
+  const recCount = S.courses.filter(c => c.recommended).length;
 
   qs('#courses-content').innerHTML = `
     <div class="filters">
@@ -931,6 +958,9 @@ function renderCourses() {
         ${['AI Literate Workers','AI Fluent Workers','AI Fluent Biz Leaders'].map(a =>
           `<option value="${a}" ${S.filters.arch===a?'selected':''}>${a}</option>`).join('')}
       </select>
+      <button class="filter-star-btn${S.filters.recommended?' active':''}" onclick="S.filters.recommended=!S.filters.recommended;renderCourses()">
+        ⭐ Recommended${recCount?' ('+recCount+')':''}
+      </button>
       <span style="color:var(--text3);font-size:12px;margin-left:4px">${courses.length} course${courses.length!==1?'s':''}</span>
     </div>
     <div class="table-wrap">
@@ -1442,9 +1472,10 @@ function renderAdmin() {
     const d = new Date(a.submitted_at).toLocaleDateString('en-SG', { day:'numeric', month:'short' });
     return `<tr>
       <td>${esc(p?.full_name||'—')}</td>
-      <td style="max-width:260px">${esc(c?.name||'—')}</td>
+      <td style="max-width:240px">${esc(c?.name||'—')}</td>
       <td>${d}</td>
       <td><span style="font-size:12px;color:var(--text2)">${esc(a.responses?.d1||'—')}</span></td>
+      <td><button class="btn btn-red btn-sm" onclick="adminDeleteEvaluation('${a.id}','${a.course_id}')">Delete</button></td>
     </tr>`;
   }).join('');
 
@@ -1494,23 +1525,107 @@ function renderAdmin() {
     </div>
 
     <div class="admin-section">
-      <div class="admin-section-title">Submitted Evaluations (${submitted.length})</div>
+      <div class="admin-section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Submitted Evaluations (${submitted.length})</span>
+        ${submitted.length ? `<button class="btn btn-secondary btn-sm" onclick="downloadEvaluationsCSV()" style="font-size:12px">⬇ Download CSV</button>` : ''}
+      </div>
       ${submitted.length ? `
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Auditor</th><th>Course</th><th>Submitted</th><th>Recommendation</th></tr></thead>
+            <thead><tr><th>Auditor</th><th>Course</th><th>Submitted</th><th>Recommendation</th><th>Action</th></tr></thead>
             <tbody>${submittedRows}</tbody>
           </table>
         </div>` : `<p style="color:var(--text2);font-size:13px">No submitted evaluations yet.</p>`}
     </div>`;
 }
 
+
+async function toggleRecommended(courseId, current) {
+  if (!S.profile?.is_admin) return;
+  const { error } = await db.from('courses').update({ recommended: !current }).eq('id', courseId);
+  if (error) return toast(error.message, 'error');
+  const course = S.courses.find(c => c.id === courseId);
+  if (course) course.recommended = !current;
+  toast(!current ? '⭐ Course marked as recommended' : 'Recommendation removed', 'success');
+  renderCourses();
+}
 async function adminConfirm(auditId, courseId) {
   const { error } = await db.from('audits').update({ confirmed: true }).eq('id', auditId);
   if (error) return toast(error.message, 'error');
   await db.from('courses').update({ status: 'Confirmed' }).eq('id', courseId);
   toast('Slot confirmed!', 'success');
   await reload();
+}
+
+async function adminDeleteEvaluation(auditId, courseId) {
+  const audit  = S.audits.find(a => a.id === auditId);
+  const course = S.courses.find(c => c.id === courseId);
+  const auditor = profile(audit?.user_id)?.full_name || 'this auditor';
+  if (!confirm(`Delete the evaluation by ${auditor} for "${course?.name || 'this course'}"?\n\nThis will permanently remove their responses and reset the course status.`)) return;
+
+  const { error } = await db.from('audits').delete().eq('id', auditId);
+  if (error) return toast(error.message, 'error');
+
+  // Recalculate course status from remaining audits (same logic as doUnclaim)
+  const remaining = S.audits.filter(a => a.course_id === courseId && a.id !== auditId);
+  let newStatus = 'Unassigned';
+  if (remaining.length) {
+    if (remaining.some(a => a.submitted_at)) newStatus = 'Completed';
+    else if (remaining.some(a => a.confirmed))  newStatus = 'Confirmed';
+    else newStatus = 'Claimed';
+  }
+  await db.from('courses').update({ status: newStatus }).eq('id', courseId);
+
+  toast('Evaluation deleted and course status reset.', 'info');
+  await reload();
+}
+
+function downloadEvaluationsCSV() {
+  const submitted = S.audits.filter(a => a.submitted_at);
+  if (!submitted.length) return toast('No submitted evaluations to export.', 'info');
+
+  const FIELDS = [
+    // [csv header, response key or null for metadata]
+    ['Auditor',           null, a => profile(a.user_id)?.full_name || ''],
+    ['Course Name',       null, a => S.courses.find(c => c.id === a.course_id)?.name || ''],
+    ['TGS Number',        null, a => S.courses.find(c => c.id === a.course_id)?.tgs_number || ''],
+    ['Tier',              null, a => S.courses.find(c => c.id === a.course_id)?.pick || ''],
+    ['Archetype',         null, a => S.courses.find(c => c.id === a.course_id)?.archetype || ''],
+    ['Preferred Date',    null, a => a.preferred_date || ''],
+    ['Submitted',         null, a => a.submitted_at ? new Date(a.submitted_at).toLocaleDateString('en-SG', { day:'numeric', month:'short', year:'numeric' }) : ''],
+    ['A1 – Industry Alignment Rating',       'a1',       null],
+    ['A2 – Industry Trends & Gaps',          'a2',       null],
+    ['B1 – Difficulty Level Rating',         'b1',       null],
+    ['B2 – Learner Differentiation Rating',  'b2',       null],
+    ['B3 – Evidence & Observations',         'b3',       null],
+    ['C1 – Skills Gap Coverage Rating',      'c1',       null],
+    ['C2 – AI Tools & Platforms Covered',    'c2_tools', null],
+    ['C3 – Currency of Tools Rating',        'c3',       null],
+    ['C4 – Remaining Skills Gaps',           'c4',       null],
+    ['D1 – Overall Recommendation',          'd1',       null],
+  ];
+
+  const csvRow = vals => vals.map(v => {
+    const s = String(v ?? '').replace(/"/g, '""');
+    return /[",\n\r]/.test(s) ? `"${s}"` : s;
+  }).join(',');
+
+  const headers = csvRow(FIELDS.map(f => f[0]));
+  const rows = submitted.map(a => {
+    const r = a.responses || {};
+    return csvRow(FIELDS.map(([, key, fn]) => fn ? fn(a) : (r[key] ?? '')));
+  });
+
+  const csv  = [headers, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  link.href     = url;
+  link.download = `audit-evaluations-${date}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  toast(`Exported ${submitted.length} evaluation${submitted.length !== 1 ? 's' : ''}.`, 'success');
 }
 
 async function adminAddCourse() {
