@@ -40,6 +40,7 @@ create table if not exists public.audits (
   user_id        uuid references public.profiles(id) on delete cascade not null,
   preferred_date text,
   confirmed      boolean not null default false,
+  rejection_reason text,
   responses      jsonb not null default '{}'::jsonb,
   submitted_at   timestamptz,
   created_at     timestamptz not null default now(),
@@ -326,7 +327,8 @@ insert into public.courses (tgs_number, name, pick, archetype, next_run, course_
 --   alter table public.courses
 --     add column if not exists recommended boolean not null default false;
 --
--- MIGRATION: if you ran the schema before open-ended tiers, run this
+-- MIGRATION: add rejection_reason column to existing deployments:
+--   alter table public.audits add column if not exists rejection_reason text;
 -- once to drop the old tier check constraint:
 --   alter table public.courses drop constraint if exists courses_pick_check;
 --   alter table public.courses add constraint courses_pick_check check (pick >= 1);
