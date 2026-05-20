@@ -37,7 +37,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -109,7 +109,7 @@ body {
   padding: 10px 13px;
   color: var(--text);
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: 15px;
   outline: none;
   transition: border-color .2s;
 }
@@ -159,7 +159,7 @@ body {
   border: 1px solid rgba(240,79,79,.22);
 }
 .btn-red:hover:not(:disabled) { background: rgba(240,79,79,.18); }
-.btn-sm { padding: 5px 11px; font-size: 12px; border-radius: 6px; }
+.btn-sm { padding: 7px 13px; font-size: 13px; border-radius: 7px; }
 
 /* ─── APP SHELL ──────────────────────────────────────────── */
 #app { display: flex; flex-direction: column; min-height: 100vh; }
@@ -221,10 +221,10 @@ body {
 
 .page-title {
   font-family: var(--head);
-  font-size: 24px; font-weight: 800; letter-spacing: -.4px;
+  font-size: 26px; font-weight: 800; letter-spacing: -.4px;
   margin-bottom: 2px;
 }
-.page-sub { color: var(--text2); font-size: 13px; margin-bottom: 22px; }
+.page-sub { color: var(--text2); font-size: 14px; margin-bottom: 22px; }
 
 /* ─── FILTERS ────────────────────────────────────────────── */
 .filters {
@@ -257,9 +257,9 @@ th {
   white-space: nowrap;
 }
 td {
-  padding: 11px 14px;
+  padding: 12px 14px;
   border-bottom: 1px solid rgba(28,42,64,.7);
-  font-size: 13px; vertical-align: middle;
+  font-size: 14px; vertical-align: middle;
 }
 tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: rgba(255,255,255,.015); }
@@ -409,11 +409,11 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   font-family: var(--mono); font-size: 11px; font-weight: 500;
   color: var(--accent); text-transform: uppercase; letter-spacing: .08em;
 }
-.eval-sec-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.eval-sec-body { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+.eval-sec-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.eval-sec-body { padding: 20px; display: flex; flex-direction: column; gap: 18px; }
 .eval-field {}
 .eval-field-label {
-  font-size: 12px; font-weight: 500; color: var(--text2);
+  font-size: 14px; font-weight: 500; color: var(--text2);
   margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
 }
 .field-code {
@@ -423,10 +423,10 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 }
 .rating-btns { display: flex; gap: 5px; flex-wrap: wrap; }
 .r-btn {
-  padding: 6px 13px; border-radius: 6px;
+  padding: 8px 15px; border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg3); color: var(--text2);
-  font-family: var(--sans); font-size: 12px;
+  font-family: var(--sans); font-size: 14px;
   cursor: pointer; transition: all .15s;
 }
 .r-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
@@ -437,9 +437,9 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 .r-btn:disabled { cursor: default; }
 .eval-ta {
   width: 100%; background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 8px; padding: 10px 13px;
-  color: var(--text); font-family: var(--sans); font-size: 13px;
-  resize: vertical; min-height: 75px;
+  border-radius: 8px; padding: 12px 14px;
+  color: var(--text); font-family: var(--sans); font-size: 15px;
+  resize: vertical; min-height: 90px;
   outline: none; transition: border-color .2s;
 }
 .eval-ta:focus { border-color: var(--accent); }
@@ -468,7 +468,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   font-family: var(--head); font-size: 16px; font-weight: 700;
   color: var(--text); margin-bottom: 7px;
 }
-.locked-sub { font-size: 13px; color: var(--text2); max-width: 340px; margin: 0 auto; }
+.locked-sub { font-size: 14px; color: var(--text2); max-width: 360px; margin: 0 auto; }
 .empty-state {
   text-align: center; padding: 50px 20px;
 }
@@ -487,13 +487,13 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   justify-content: space-between; gap: 12px;
 }
 .audit-card-title {
-  font-family: var(--head); font-size: 16px; font-weight: 700;
-  margin-bottom: 4px; line-height: 1.3;
+  font-family: var(--head); font-size: 18px; font-weight: 700;
+  margin-bottom: 5px; line-height: 1.3;
 }
 .audit-card-meta {
-  font-family: var(--mono); font-size: 11px; color: var(--text2);
+  font-family: var(--mono); font-size: 13px; color: var(--text2);
 }
-.audit-card-body { padding: 20px; }
+.audit-card-body { padding: 22px; }
 
 /* ─── SUBMITTED BANNER ───────────────────────────────────── */
 .submitted-banner {
@@ -502,7 +502,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   border-radius: 8px; padding: 11px 15px;
   margin-bottom: 18px; display: flex;
   align-items: center; gap: 8px;
-  font-size: 13px; color: var(--green);
+  font-size: 15px; color: var(--green);
 }
 
 /* ─── STATS / PROGRESS ───────────────────────────────────── */
@@ -576,7 +576,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   position: fixed; bottom: 24px; right: 24px;
   background: var(--bg2); border: 1px solid var(--border2);
   border-radius: 10px; padding: 11px 18px;
-  font-size: 13px; color: var(--text);
+  font-size: 14px; color: var(--text);
   box-shadow: 0 8px 28px rgba(0,0,0,.4);
   z-index: 400; transform: translateY(16px); opacity: 0;
   transition: all .25s; pointer-events: none;
@@ -609,6 +609,84 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   td, th { padding: 9px 10px; }
   .avail-name { width: 110px; }
+}
+
+/* ─── RESPONSIVE / MOBILE ────────────────────────────────── */
+@media (max-width: 680px) {
+  /* Header */
+  .app-header { padding: 0 14px; height: 50px; }
+  .app-wordmark { font-size: 15px; }
+  .header-user { display: none; }
+  .header-admin-badge { font-size: 10px; padding: 2px 6px; }
+
+  /* Nav */
+  .app-nav { padding: 0 10px; gap: 0; }
+  .nav-tab { padding: 11px 10px; font-size: 12px; }
+
+  /* Content */
+  .app-content { padding: 16px 12px; }
+  .page-title { font-size: 20px; }
+  .page-sub { font-size: 13px; margin-bottom: 16px; }
+
+  /* Filters */
+  .filters { gap: 6px; }
+  .filter-select { font-size: 13px; padding: 7px 9px; }
+  .filter-star-btn { font-size: 12px; padding: 6px 10px; }
+
+  /* Tables — horizontal scroll on mobile */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap table { min-width: 540px; }
+  td, th { padding: 10px 11px; }
+
+  /* Modal — bottom sheet on mobile */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal { border-radius: 22px 22px 0 0; max-height: 94vh; width: 100%; max-width: 100%; }
+  .modal-head { padding: 18px 18px 0; }
+  .modal-body { padding: 14px 18px; }
+  .modal-footer { padding: 0 18px 20px; }
+
+  /* Form rows — single column */
+  .form-row { grid-template-columns: 1fr !important; }
+  .add-form { padding: 14px; }
+
+  /* Audit cards */
+  .audit-card-head { flex-direction: column; gap: 8px; }
+  .audit-card-body { padding: 14px; }
+  .audit-card-title { font-size: 16px; }
+
+  /* Eval form */
+  .eval-sec-body { padding: 14px; gap: 14px; }
+  .eval-sec-head { padding: 10px 14px; }
+  .r-btn { padding: 9px 13px; font-size: 13px; }
+  .eval-ta { font-size: 14px; }
+  .eval-form-footer { flex-direction: column; align-items: stretch; }
+  .eval-form-footer .btn { justify-content: center; }
+
+  /* Stats grid — 2 col */
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-val { font-size: 26px; }
+
+  /* Availability */
+  .avail-row { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px; }
+  .avail-name { width: auto; }
+  .day-btn { padding: 8px 14px; font-size: 13px; }
+
+  /* Progress */
+  .progress-card { padding: 14px 16px; }
+
+  /* Admin */
+  .admin-section-title { font-size: 15px; }
+  .add-mode-tab { font-size: 12px; padding: 6px 12px 10px; }
+
+  /* Toast — bottom centre on mobile */
+  #toast { right: 12px; left: 12px; bottom: 16px; font-size: 13px; text-align: center; }
+}
+
+@media (max-width: 400px) {
+  .nav-tab { padding: 10px 8px; font-size: 11px; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .rating-btns { gap: 4px; }
+  .r-btn { padding: 8px 10px; font-size: 12px; }
 }
 </style>
 </head>
