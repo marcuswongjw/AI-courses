@@ -370,30 +370,6 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 .radio-option input[type="radio"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
 .radio-label { font-size: 13px; color: var(--text); }
 
-/* ─── AVAILABILITY ───────────────────────────────────────── */
-.avail-list { display: flex; flex-direction: column; gap: 10px; }
-.avail-row {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 10px; padding: 14px 18px;
-  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-}
-.avail-name {
-  width: 160px; flex-shrink: 0;
-  font-size: 13px; font-weight: 500; color: var(--text);
-}
-.avail-name.me { color: var(--accent); }
-.day-group { display: flex; gap: 6px; flex-wrap: wrap; }
-.day-btn {
-  padding: 6px 13px;
-  border-radius: 6px; border: 1px solid var(--border);
-  background: var(--bg3); color: var(--text2);
-  font-family: var(--mono); font-size: 12px;
-  cursor: pointer; transition: all .15s;
-}
-.day-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.day-btn.on { background: rgba(74,143,255,.14); border-color: rgba(74,143,255,.35); color: var(--accent); font-weight: 500; }
-.day-btn.on-ro { background: rgba(34,197,94,.1); border-color: rgba(34,197,94,.28); color: var(--green); }
-.day-btn:disabled { cursor: default; }
 
 /* ─── EVALUATION FORM ────────────────────────────────────── */
 .eval-form { display: flex; flex-direction: column; gap: 20px; }
@@ -607,9 +583,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   .app-content { padding: 18px 14px; }
   .auth-card { padding: 28px 22px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  td, th { padding: 9px 10px; }
-  .avail-name { width: 110px; }
-}
+  td, th { padding: 9px 10px; }}
 
 /* ─── RESPONSIVE / MOBILE ────────────────────────────────── */
 @media (max-width: 680px) {
@@ -665,12 +639,6 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   /* Stats grid — 2 col */
   .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat-val { font-size: 26px; }
-
-  /* Availability */
-  .avail-row { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px; }
-  .avail-name { width: auto; }
-  .day-btn { padding: 8px 14px; font-size: 13px; }
-
   /* Progress */
   .progress-card { padding: 14px 16px; }
 
@@ -753,7 +721,6 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   <nav class="app-nav">
     <button class="nav-tab active" data-tab="courses"      onclick="switchTab('courses')">Courses</button>
     <button class="nav-tab"        data-tab="myaudits"     onclick="switchTab('myaudits')">My Audits</button>
-    <button class="nav-tab"        data-tab="availability" onclick="switchTab('availability')">Availability</button>
     <button class="nav-tab"        data-tab="progress"     onclick="switchTab('progress')">Progress</button>
     <button class="nav-tab"        data-tab="admin" id="admin-nav-tab" style="display:none" onclick="switchTab('admin')">Admin</button>
   </nav>
@@ -775,11 +742,6 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
     </div>
 
     <!-- AVAILABILITY TAB -->
-    <div class="tab-panel" id="tab-availability">
-      <div class="page-title">Availability</div>
-      <div class="page-sub">Toggle your available days. Other auditors' availability shown as read-only.</div>
-      <div id="avail-content"></div>
-    </div>
 
     <!-- PROGRESS TAB -->
     <div class="tab-panel" id="tab-progress">
@@ -843,7 +805,6 @@ const S = {
   courses: [],
   audits: [],
   profiles: [],
-  availability: [],
   tab: 'courses',
   filters: { status: '', tier: '', arch: '', recommended: false },
   // In-memory form edits (auditId → {key:value,...})
@@ -932,17 +893,15 @@ function setAuthLoading(on) {
 //  DATA LOADING
 // ─────────────────────────────────────────────────────────
 async function loadAll() {
-  const [cR, aR, pR, avR] = await Promise.all([
+  const [cR, aR, pR] = await Promise.all([
     db.from('courses').select('*').order('pick').order('name'),
     db.from('audits').select('*'),
-    db.from('profiles').select('*'),
-    db.from('availability').select('*')
+    db.from('profiles').select('*')
   ]);
-  S.courses      = cR.data  || [];
-  S.audits       = aR.data  || [];
-  S.profiles     = pR.data  || [];
-  S.availability = avR.data || [];
-  S.profile      = S.profiles.find(p => p.id === S.user?.id) || null;
+  S.courses  = cR.data || [];
+  S.audits   = aR.data || [];
+  S.profiles = pR.data || [];
+  S.profile  = S.profiles.find(p => p.id === S.user?.id) || null;
 }
 
 async function reload() {
@@ -965,14 +924,13 @@ function switchTab(tab) {
 function render() {
   const map = {
     courses: 'tab-courses', myaudits: 'tab-myaudits',
-    availability: 'tab-availability', progress: 'tab-progress', admin: 'tab-admin'
+    progress: 'tab-progress', admin: 'tab-admin'
   };
   Object.values(map).forEach(id => qs('#' + id)?.classList.remove('active'));
   qs('#' + map[S.tab])?.classList.add('active');
   switch (S.tab) {
     case 'courses':      renderCourses(); break;
     case 'myaudits':     renderMyAudits(); break;
-    case 'availability': renderAvailability(); break;
     case 'progress':     renderProgress(); break;
     case 'admin':        renderAdmin(); break;
   }
@@ -1417,46 +1375,6 @@ async function submitAudit(auditId, courseId) {
 // ─────────────────────────────────────────────────────────
 //  AVAILABILITY TAB
 // ─────────────────────────────────────────────────────────
-function renderAvailability() {
-  const DAYS = ['Mon','Tue','Wed','Thu','Fri'];
-  const el = qs('#avail-content');
-
-  if (!S.profiles.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-txt">No users found.</div></div>`;
-    return;
-  }
-
-  const rows = S.profiles.map(p => {
-    const isMe  = p.id === S.user?.id;
-    const avail = S.availability.find(a => a.user_id === p.id);
-    const active = avail?.days || [];
-    const btns = DAYS.map(d => {
-      const on = active.includes(d);
-      if (isMe) return `<button class="day-btn ${on?'on':''}" onclick="toggleDay('${d}')">${d}</button>`;
-      return `<button class="day-btn ${on?'on-ro':''}" disabled>${d}</button>`;
-    }).join('');
-    return `<div class="avail-row">
-      <div class="avail-name ${isMe?'me':''}">${esc(p.full_name)}${isMe?' <span style="font-size:11px;color:var(--text3)">(you)</span>':''}</div>
-      <div class="day-group">${btns}</div>
-    </div>`;
-  }).join('');
-
-  el.innerHTML = `<div class="avail-list">${rows}</div>`;
-}
-
-async function toggleDay(day) {
-  const avail = S.availability.find(a => a.user_id === S.user.id);
-  let days = avail ? [...avail.days] : [];
-  days = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
-
-  if (avail) {
-    await db.from('availability').update({ days, updated_at: new Date().toISOString() })
-      .eq('user_id', S.user.id);
-  } else {
-    await db.from('availability').insert({ user_id: S.user.id, days });
-  }
-  await reload();
-}
 
 // ─────────────────────────────────────────────────────────
 //  PROGRESS TAB
@@ -1902,7 +1820,7 @@ function downloadEvaluationsCSV() {
   const headers = csvRow(FIELDS.map(f => f[0]));
   const rows = submitted.map(a => {
     const r = a.responses || {};
-    return csvRow(FIELDS.map(([, key, fn]) => fn ? fn(a) : (r[key] ?? '')));
+    return csvRow(FIELDS.map(([_label, key, fn]) => fn ? fn(a) : (r[key] ?? '')));
   });
 
   const csv  = [headers, ...rows].join('\r\n');
