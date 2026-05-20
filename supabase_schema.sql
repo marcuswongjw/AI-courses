@@ -20,9 +20,10 @@ create table if not exists public.courses (
   archetype   text,
   status      text not null default 'Unassigned'
                 check (status in ('Unassigned','Claimed','Confirmed','Completed')),
-  next_run    text,
-  course_fee  text,
-  created_at  timestamptz not null default now()
+  next_run     text,
+  course_fee   text,
+  recommended  boolean not null default false,
+  created_at   timestamptz not null default now()
 );
 
 create table if not exists public.availability (
@@ -318,6 +319,13 @@ insert into public.courses (tgs_number, name, pick, archetype, next_run, course_
  'SUTD: Strategic Design, AI and Technology Integration for Executives',
  3, 'AI Fluent Biz Leaders',
  'TBC', '—', 'Unassigned');
+
+-- ============================================================
+-- MIGRATION: if you ran the schema before the "recommended" column
+-- was added, run this once to add it to an existing database:
+--   alter table public.courses
+--     add column if not exists recommended boolean not null default false;
+-- ============================================================
 
 -- ============================================================
 -- DONE. Verify with:
