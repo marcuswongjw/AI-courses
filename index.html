@@ -549,6 +549,14 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   margin-bottom: 14px; padding-bottom: 10px;
   border-bottom: 1px solid var(--border);
 }
+.add-mode-tab {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  padding: 6px 16px 10px; font-size: 13px; font-weight: 500;
+  color: var(--text2); cursor: pointer; margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+}
+.add-mode-tab:hover { color: var(--text); }
+.add-mode-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .add-form {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: 12px; padding: 20px;
@@ -735,8 +743,8 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 // ─────────────────────────────────────────────────────────
 //  CONFIG — replace these with your Supabase project values
 // ─────────────────────────────────────────────────────────
-const SUPABASE_URL     = 'https://llnxivpxczqxtzipjbbn.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbnhpdnB4Y3pxeHR6aXBqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMjAxMDIsImV4cCI6MjA5NDc5NjEwMn0.fTnZ71MUJwnxmhw_92YAHVKE65erPPdLSUZKy-s1z0Y';
+const SUPABASE_URL     = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 // ─────────────────────────────────────────────────────────
 //  SUPABASE CLIENT
@@ -1481,8 +1489,13 @@ function renderAdmin() {
 
   el.innerHTML = `
     <div class="admin-section">
-      <div class="admin-section-title">Add New Course</div>
-      <div class="add-form">
+      <div class="admin-section-title">Add Courses</div>
+      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border)">
+        <button id="add-tab-single" class="add-mode-tab active" onclick="switchAddTab('single')">Single Course</button>
+        <button id="add-tab-bulk"   class="add-mode-tab"        onclick="switchAddTab('bulk')">Bulk Import (CSV)</button>
+      </div>
+
+      <div id="add-panel-single" class="add-form">
         <div class="form-row">
           <div class="form-group"><label class="form-label">TGS Number</label>
             <input class="form-input" id="nc-tgs" placeholder="TGS-2024000000"></div>
@@ -1510,6 +1523,32 @@ function renderAdmin() {
             <input class="form-input" id="nc-dates" placeholder="1-3 May, 15-17 May, TBC"></div>
         </div>
         <button class="btn btn-primary" style="width:auto;min-width:140px" onclick="adminAddCourse()">Add Course</button>
+      </div>
+
+      <div id="add-panel-bulk" style="display:none">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.7">
+          <strong style="color:var(--text);display:block;margin-bottom:4px">CSV format — one course per row, no header row needed:</strong>
+          <code style="color:#7bb3ff;font-size:11px">TGS Number, Course Name, Tier (1/2/3), Archetype, Run Dates, Fee</code><br>
+          <span style="color:var(--text3)">TGS Number and Fee are optional. Archetype must be one of: <em>AI Literate Workers</em>, <em>AI Fluent Workers</em>, <em>AI Fluent Biz Leaders</em></span><br>
+          <strong style="color:var(--text);display:block;margin-top:6px;margin-bottom:2px">Example:</strong>
+          <code style="color:var(--text2);font-size:11px">TGS-2024001234, Acme: AI for Beginners, 1, AI Literate Workers, "3 May, 10 May", $500<br>
+, BrightPath: Advanced Prompt Engineering, 2, AI Fluent Workers, TBC, $800</code>
+        </div>
+        <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer;font-size:12px">
+            📂 Upload .csv file
+            <input type="file" accept=".csv,text/csv" id="csv-file-input" style="display:none" onchange="loadCsvFile(this)">
+          </label>
+          <span style="color:var(--text3);font-size:12px">or paste directly below</span>
+        </div>
+        <textarea class="eval-ta" id="bulk-csv-input" rows="7" placeholder="TGS-2024001234, Provider: Course Name, 1, AI Literate Workers, &quot;3 May, 10 May&quot;, $500
+, Another Provider: Course Name, 3, AI Fluent Biz Leaders, TBC, —" style="font-family:var(--mono);font-size:12px;margin-bottom:10px"></textarea>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-secondary" style="width:auto" onclick="previewBulkImport()">Preview</button>
+          <button class="btn btn-primary"   style="width:auto;display:none" id="bulk-import-btn" onclick="confirmBulkImport()">Import Courses</button>
+          <span id="bulk-status" style="font-size:12px;color:var(--text2)"></span>
+        </div>
+        <div id="bulk-preview" style="margin-top:14px"></div>
       </div>
     </div>
 
@@ -1626,6 +1665,124 @@ function downloadEvaluationsCSV() {
   link.click();
   URL.revokeObjectURL(url);
   toast(`Exported ${submitted.length} evaluation${submitted.length !== 1 ? 's' : ''}.`, 'success');
+}
+
+function switchAddTab(tab) {
+  qs('#add-panel-single').style.display = tab === 'single' ? '' : 'none';
+  qs('#add-panel-bulk').style.display   = tab === 'bulk'   ? '' : 'none';
+  qs('#add-tab-single').classList.toggle('active', tab === 'single');
+  qs('#add-tab-bulk').classList.toggle('active',   tab === 'bulk');
+}
+
+function loadCsvFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { qs('#bulk-csv-input').value = e.target.result; previewBulkImport(); };
+  reader.readAsText(file);
+}
+
+function parseCsvLine(line) {
+  // Handles quoted fields containing commas
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+const VALID_ARCHETYPES = ['AI Literate Workers','AI Fluent Workers','AI Fluent Biz Leaders'];
+
+function parseBulkCsv(raw) {
+  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  const courses = [], errors = [];
+  lines.forEach((line, i) => {
+    const cols = parseCsvLine(line);
+    const [tgs, name, tier, arch, dates, fee] = cols;
+    const rowNum = i + 1;
+    if (!name) { errors.push(`Row ${rowNum}: Course Name is required.`); return; }
+    const tierNum = parseInt(tier);
+    if (![1,2,3].includes(tierNum)) { errors.push(`Row ${rowNum}: Tier must be 1, 2, or 3 (got "${tier}").`); return; }
+    const archClean = arch?.trim();
+    const archMatch = VALID_ARCHETYPES.find(a => a.toLowerCase() === archClean?.toLowerCase());
+    if (!archMatch) { errors.push(`Row ${rowNum}: Archetype "${archClean}" not recognised. Use one of: ${VALID_ARCHETYPES.join(', ')}.`); return; }
+    courses.push({
+      tgs_number: tgs?.trim() || null,
+      name: name.trim(),
+      pick: tierNum,
+      archetype: archMatch,
+      next_run: dates?.trim() || 'TBC',
+      course_fee: fee?.trim() || '—',
+      status: 'Unassigned'
+    });
+  });
+  return { courses, errors };
+}
+
+function previewBulkImport() {
+  const raw = qs('#bulk-csv-input').value.trim();
+  const previewEl = qs('#bulk-preview');
+  const statusEl  = qs('#bulk-status');
+  const importBtn = qs('#bulk-import-btn');
+
+  if (!raw) { previewEl.innerHTML = ''; statusEl.textContent = ''; importBtn.style.display = 'none'; return; }
+
+  const { courses, errors } = parseBulkCsv(raw);
+
+  let html = '';
+  if (errors.length) {
+    html += `<div style="background:rgba(240,79,79,.08);border:1px solid rgba(240,79,79,.25);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+      <div style="font-weight:600;color:#f87171;margin-bottom:6px;font-size:13px">⚠ ${errors.length} error${errors.length>1?'s':''} found — fix before importing</div>
+      ${errors.map(e => `<div style="font-size:12px;color:#fca5a5;margin-top:2px">${esc(e)}</div>`).join('')}
+    </div>`;
+  }
+  if (courses.length) {
+    html += `<div class="table-wrap"><table>
+      <thead><tr><th>TGS</th><th>Course Name</th><th>Tier</th><th>Archetype</th><th>Dates</th><th>Fee</th></tr></thead>
+      <tbody>${courses.map(c => `<tr>
+        <td style="font-size:12px;color:var(--text2)">${esc(c.tgs_number||'—')}</td>
+        <td style="max-width:240px;font-size:13px">${esc(c.name)}</td>
+        <td><span class="badge b-t${c.pick}">Tier ${c.pick}</span></td>
+        <td style="font-size:12px;color:var(--text2)">${esc(c.archetype)}</td>
+        <td style="font-size:12px;color:var(--text2)">${esc(c.next_run)}</td>
+        <td style="font-size:12px;color:var(--text2)">${esc(c.course_fee)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  }
+
+  previewEl.innerHTML = html;
+  if (courses.length && !errors.length) {
+    statusEl.textContent = `${courses.length} course${courses.length>1?'s':''} ready to import`;
+    statusEl.style.color = 'var(--green)';
+    importBtn.style.display = '';
+  } else {
+    statusEl.textContent = courses.length ? `${courses.length} valid, ${errors.length} with errors` : `No valid courses`;
+    statusEl.style.color = 'var(--text2)';
+    importBtn.style.display = 'none';
+  }
+  window._bulkParsed = courses;
+}
+
+async function confirmBulkImport() {
+  const courses = window._bulkParsed;
+  if (!courses?.length) return;
+  const btn = qs('#bulk-import-btn');
+  btn.disabled = true; btn.textContent = 'Importing…';
+  const { error } = await db.from('courses').insert(courses);
+  btn.disabled = false; btn.textContent = 'Import Courses';
+  if (error) return toast(error.message, 'error');
+  qs('#bulk-csv-input').value = '';
+  qs('#bulk-preview').innerHTML = '';
+  qs('#bulk-status').textContent = '';
+  btn.style.display = 'none';
+  window._bulkParsed = [];
+  toast(`✓ ${courses.length} course${courses.length>1?'s':''} imported successfully!`, 'success');
+  await reload();
 }
 
 async function adminAddCourse() {
