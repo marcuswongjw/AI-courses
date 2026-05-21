@@ -1266,7 +1266,13 @@ function buildSubmittedHtml(audit) {
     : `<span style="color:var(--text3)">—</span>`;
 
   return `
-    <div class="submitted-banner"><span>✓</span><span>Submitted on ${d}</span></div>
+    <div class="submitted-banner">
+      <div style="display:flex;align-items:center;gap:8px"><span>✓</span><span>Submitted on ${d}</span></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="auditorEditEvaluation('${audit.id}')">✏️ Edit Evaluation</button>
+        <button class="btn btn-red btn-sm"       onclick="auditorDeleteEvaluation('${audit.id}','${audit.course_id}')">🗑 Delete</button>
+      </div>
+    </div>
     <div class="eval-form">
       <div class="eval-section">
         <div class="eval-sec-head"><span class="eval-sec-code">A</span><span class="eval-sec-title">Industry Alignment</span></div>
@@ -1356,6 +1362,41 @@ function setSaveStatus(auditId, st) {
     dot.classList.remove('saving');
     txt.textContent = st === 'error' ? '⚠ Save failed' : 'All changes saved';
   }
+}
+
+async function auditorEditEvaluation(auditId) {
+  if (!confirm('Reopen this evaluation for editing? It will be marked as unsubmitted until you submit again.')) return;
+  const { error } = await db.from('audits')
+    .update({ submitted_at: null })
+    .eq('id', auditId)
+    .eq('user_id', S.user.id);
+  if (error) return toast(error.message, 'error');
+
+  // Reset course status from Completed back to Confirmed
+  const audit = S.audits.find(a => a.id === auditId);
+  if (audit) await db.from('courses').update({ status: 'Confirmed' }).eq('id', audit.course_id);
+
+  toast('Evaluation reopened for editing.', 'info');
+  await reload();
+}
+
+async function auditorDeleteEvaluation(auditId, courseId) {
+  if (!confirm('Permanently delete your evaluation for this course? This cannot be undone.\n\nYou will need to re-claim the course if you want to submit again.')) return;
+
+  const { error } = await db.from('audits').delete().eq('id', auditId).eq('user_id', S.user.id);
+  if (error) return toast(error.message, 'error');
+
+  // Recalculate course status from remaining audits
+  const remaining = S.audits.filter(a => a.course_id === courseId && a.id !== auditId);
+  let newStatus = 'Unassigned';
+  if (remaining.length) {
+    if (remaining.some(a => a.submitted_at))   newStatus = 'Completed';
+    else if (remaining.some(a => a.confirmed)) newStatus = 'Confirmed';
+    else newStatus = 'Claimed';
+  }
+  await db.from('courses').update({ status: newStatus }).eq('id', courseId);
+  toast('Evaluation deleted.', 'info');
+  await reload();
 }
 
 async function submitAudit(auditId, courseId) {
@@ -2153,6 +2194,30 @@ document.addEventListener('click', e => {
 init();
 </script>
 <!-- Edit Course Modal -->
+
+
+<!-- Reject Claim Modal -->
+<div class="modal-overlay" id="reject-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head">
+      <div class="modal-title">Reject Claim</div>
+      <button class="modal-x" onclick="closeRejectModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="reject-course-name" style="font-weight:500;font-size:14px;color:var(--text);margin-bottom:16px;padding:10px 13px;background:var(--bg3);border:1px solid var(--border);border-radius:8px"></div>
+      <div class="form-group">
+        <label class="form-label">Reason for rejection <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">(optional — auditor will see this)</span></label>
+        <textarea class="eval-ta" id="reject-reason" rows="4" placeholder="e.g. Dates conflict with another auditor's slot. Please choose an alternative date."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
+      <button class="btn btn-red" style="width:auto" onclick="confirmRejectClaim()">Reject Claim</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Course Modal -->
 <div class="modal-overlay" id="edit-course-modal">
   <div class="modal" style="max-width:520px">
     <div class="modal-head">
@@ -2185,7 +2250,7 @@ init();
       <div class="form-group" style="margin:0">
         <label class="form-label">Run Dates</label>
         <input class="form-input" id="ec-dates" type="text" placeholder="e.g. 3 May, 10 May, TBC">
-        <div style="font-size:12px;color:var(--text3);margin-top:5px">Separate multiple dates with commas. Each date becomes a selectable option when auditors claim the course.</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:5px">Separate multiple dates with commas.</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group" style="margin:0">
@@ -2206,26 +2271,6 @@ init();
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeEditCourseModal()">Cancel</button>
       <button class="btn btn-primary" style="width:auto" onclick="saveEditCourse()">Save Changes</button>
-    </div>
-  </div>
-</div>
-
-</body>
-  <div class="modal" style="max-width:440px">
-    <div class="modal-head">
-      <div class="modal-title">Reject Claim</div>
-      <button class="modal-x" onclick="closeRejectModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <div id="reject-course-name" style="font-weight:500;font-size:14px;color:var(--text);margin-bottom:16px;padding:10px 13px;background:var(--bg3);border:1px solid var(--border);border-radius:8px"></div>
-      <div class="form-group">
-        <label class="form-label">Reason for rejection <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">(optional — auditor will see this)</span></label>
-        <textarea class="eval-ta" id="reject-reason" rows="4" placeholder="e.g. Dates conflict with another auditor's slot. Please choose an alternative date."></textarea>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
-      <button class="btn btn-red" style="width:auto" onclick="confirmRejectClaim()">Reject Claim</button>
     </div>
   </div>
 </div>
