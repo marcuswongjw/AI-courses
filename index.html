@@ -1479,6 +1479,7 @@ function renderProgress() {
 //  ADMIN TAB
 // ─────────────────────────────────────────────────────────
 function renderAdmin() {
+  closeRejectModal();
   const el = qs('#admin-content');
   if (!S.profile?.is_admin) {
     el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-txt">Admin access required. Ask an existing admin to grant you access via the Supabase dashboard.</div></div>`;
@@ -2141,7 +2142,9 @@ function toast(msg, type='info') {
 
 // Close modal on backdrop click
 document.addEventListener('click', e => {
-  if (e.target.id === 'modal-overlay') closeModal();
+  if (e.target.id === 'modal-overlay')      closeModal();
+  if (e.target.id === 'reject-modal')       closeRejectModal();
+  if (e.target.id === 'edit-course-modal')  closeEditCourseModal();
 });
 
 // ─────────────────────────────────────────────────────────
