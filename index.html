@@ -787,8 +787,8 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 // ─────────────────────────────────────────────────────────
 //  CONFIG — replace these with your Supabase project values
 // ─────────────────────────────────────────────────────────
-const SUPABASE_URL     = 'https://xvkrrczwpjnqklvbppua.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2a3JyY3p3cGpucWtsdmJwcHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMjk1MDAsImV4cCI6MjA5NDgwNTUwMH0.rVydZNoCRHOQDicA4NGtAlCbU4iw8dNHfFzRjnrbsDk';
+const SUPABASE_URL     = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 // ─────────────────────────────────────────────────────────
 //  SUPABASE CLIENT
@@ -984,7 +984,10 @@ function renderCourses() {
       <td><span style="font-size:12px;color:var(--text2)">${esc(c.archetype)}</span></td>
       <td>${chips}</td>
       <td>${statusBadge}</td>
-      <td>${action}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${action}
+        ${isAdmin ? `<button class="btn btn-secondary btn-sm" style="font-size:12px;padding:5px 10px" title="Edit course details" onclick="openEditCourseModal('${c.id}')">✏️</button>` : ''}
+      </td>
     </tr>`;
   }).join('');
 
@@ -1332,7 +1335,7 @@ function scheduleAutosave(auditId) {
 
 async function doAutosave(auditId) {
   const audit = S.audits.find(a => a.id === auditId);
-  if (!audit) return;
+  if (!audit || audit.submitted_at) return; // don't overwrite a submitted evaluation
   const merged = { ...(audit.responses||{}), ...(S.formEdits[auditId]||{}) };
   const { error } = await db.from('audits').update({ responses: merged }).eq('id', auditId);
   if (!error) {
@@ -1357,13 +1360,21 @@ function setSaveStatus(auditId, st) {
 
 async function submitAudit(auditId, courseId) {
   if (!confirm('Submit this evaluation? The form will be locked permanently after submission.')) return;
+
+  // Cancel any pending autosave timer so it can't race with the submit
+  if (S.saveTimers[auditId]) {
+    clearTimeout(S.saveTimers[auditId]);
+    delete S.saveTimers[auditId];
+  }
+
   const audit = S.audits.find(a => a.id === auditId);
   const final = { ...(audit?.responses||{}), ...(S.formEdits[auditId]||{}) };
 
   const { error } = await db.from('audits').update({
-    responses: final,
+    responses:    final,
     submitted_at: new Date().toISOString()
-  }).eq('id', auditId);
+  }).eq('id', auditId).eq('user_id', S.user.id);
+
   if (error) return toast(error.message, 'error');
 
   await db.from('courses').update({ status: 'Completed' }).eq('id', courseId);
@@ -1702,6 +1713,50 @@ async function adminDeleteCourse(courseId) {
   renderDuplicates(); // re-run scan after reload
 }
 
+
+let _editCourseId = null;
+
+function openEditCourseModal(courseId) {
+  const c = S.courses.find(x => x.id === courseId);
+  if (!c) return;
+  _editCourseId = courseId;
+  qs('#ec-name').value   = c.name        || '';
+  qs('#ec-tgs').value    = c.tgs_number  || '';
+  qs('#ec-tier').value   = c.pick        || 1;
+  qs('#ec-arch').value   = c.archetype   || 'AI Literate Workers';
+  qs('#ec-dates').value  = c.next_run    || '';
+  qs('#ec-fee').value    = c.course_fee  || '';
+  qs('#ec-status').value = c.status      || 'Unassigned';
+  qs('#edit-course-modal').classList.add('open');
+}
+
+function closeEditCourseModal() {
+  qs('#edit-course-modal').classList.remove('open');
+  _editCourseId = null;
+}
+
+async function saveEditCourse() {
+  if (!_editCourseId) return;
+  const name = qs('#ec-name').value.trim();
+  if (!name) return toast('Course name is required.', 'error');
+  const tier = parseInt(qs('#ec-tier').value);
+  if (!tier || tier < 1) return toast('Tier must be a number ≥ 1.', 'error');
+
+  const { error } = await db.from('courses').update({
+    name,
+    tgs_number: qs('#ec-tgs').value.trim()   || null,
+    pick:       tier,
+    archetype:  qs('#ec-arch').value,
+    next_run:   qs('#ec-dates').value.trim()  || 'TBC',
+    course_fee: qs('#ec-fee').value.trim()    || '—',
+    status:     qs('#ec-status').value
+  }).eq('id', _editCourseId);
+
+  if (error) return toast(error.message, 'error');
+  closeEditCourseModal();
+  toast('Course updated!', 'success');
+  await reload();
+}
 
 async function toggleRecommended(courseId, current) {
   if (!S.profile?.is_admin) return;
@@ -2094,8 +2149,65 @@ document.addEventListener('click', e => {
 // ─────────────────────────────────────────────────────────
 init();
 </script>
-<!-- Reject Claim Modal -->
-<div class="modal-overlay" id="reject-modal">
+<!-- Edit Course Modal -->
+<div class="modal-overlay" id="edit-course-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <div class="modal-title">Edit Course</div>
+      <button class="modal-x" onclick="closeEditCourseModal()">×</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Course Name</label>
+        <input class="form-input" id="ec-name" type="text">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">TGS Number</label>
+          <input class="form-input" id="ec-tgs" type="text" placeholder="TGS-2024000000">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Tier</label>
+          <input class="form-input" id="ec-tier" type="number" min="1">
+        </div>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Archetype</label>
+        <select class="form-input" id="ec-arch">
+          <option>AI Literate Workers</option>
+          <option>AI Fluent Workers</option>
+          <option>AI Fluent Biz Leaders</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Run Dates</label>
+        <input class="form-input" id="ec-dates" type="text" placeholder="e.g. 3 May, 10 May, TBC">
+        <div style="font-size:12px;color:var(--text3);margin-top:5px">Separate multiple dates with commas. Each date becomes a selectable option when auditors claim the course.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Course Fee</label>
+          <input class="form-input" id="ec-fee" type="text" placeholder="$500">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Status</label>
+          <select class="form-input" id="ec-status">
+            <option>Unassigned</option>
+            <option>Claimed</option>
+            <option>Confirmed</option>
+            <option>Completed</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEditCourseModal()">Cancel</button>
+      <button class="btn btn-primary" style="width:auto" onclick="saveEditCourse()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+</body>
   <div class="modal" style="max-width:440px">
     <div class="modal-head">
       <div class="modal-title">Reject Claim</div>
