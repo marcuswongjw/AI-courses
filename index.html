@@ -702,9 +702,9 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 ════════════════════════════════════════════════════ -->
 <div id="auth-screen">
   <div class="auth-card">
-    <div class="auth-wordmark">AI courses Audit<br><em>Tracker</em></div>
-    <div class="auth-sub">Course Audit Platform</div>
-
+    <div class="auth-wordmark">AI Courses Audit<br><em>Tracker</em></div>
+    <div class="auth-sub"> Course Audit Platform</div> 
+    
     <div id="auth-error" class="error-msg"></div>
 
     <!-- Login -->
@@ -2320,15 +2320,17 @@ async function submitOnBehalf(auditId, courseId) {
 
   if (S.saveTimers[auditId]) { clearTimeout(S.saveTimers[auditId]); delete S.saveTimers[auditId]; }
 
+  // First flush any pending edits via autosave (no user_id filter — admin can update any row)
   const audit = S.audits.find(a => a.id === auditId);
   const final = { ...(audit?.responses||{}), ...(S.formEdits[auditId]||{}) };
 
-  const { error } = await db.from('audits').update({
+  const { error, data } = await db.from('audits').update({
     responses:    final,
     submitted_at: new Date().toISOString()
-  }).eq('id', auditId);
+  }).eq('id', auditId).select();
 
   if (error) return toast(error.message, 'error');
+  if (!data || data.length === 0) return toast('Update blocked — check admin permissions in Supabase RLS.', 'error');
 
   await db.from('courses').update({ status: 'Completed' }).eq('id', courseId);
   delete S.formEdits[auditId];
