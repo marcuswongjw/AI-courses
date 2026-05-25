@@ -711,11 +711,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 <div id="auth-screen">
   <div class="auth-card">
     <div class="auth-wordmark">AI Courses<br><em>Audit Tracker</em></div>
-
     <div class="auth-sub">Course Audit Platform</div>
-    
-    <div class="auth-wordmark">AI Audit<br><em>Tracker</em></div>
-    <div class="auth-sub">Mystery Shopping &amp; Course Audit Platform</div
 
     <div id="auth-error" class="error-msg"></div>
 
@@ -759,7 +755,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 <div id="app" class="hidden">
 
   <header class="app-header">
-    <div class="app-wordmark">AI Courses Audit <em>Tracker</em></div>
+    <div class="app-wordmark">AI Courses<em>Audit Tracker</em></div>
     <div class="header-right">
       <span class="header-admin-badge" id="hdr-admin" style="display:none">ADMIN</span>
       <span class="header-user" id="hdr-user"></span>
@@ -780,7 +776,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
     <!-- COURSES TAB -->
     <div class="tab-panel active" id="tab-courses">
       <div class="page-title">Courses</div>
-      <div class="page-sub">Claim a course to audit. Tier 1 courses are highest priority.</div>
+      <div class="page-sub">Claim a course to audit. Recommended courses are highest priority for audit.</div>
       <div id="courses-content"><div class="loading-state"><div class="spinner"></div>Loading courses…</div></div>
     </div>
 
@@ -837,8 +833,8 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 // ─────────────────────────────────────────────────────────
 //  CONFIG — replace these with your Supabase project values
 // ─────────────────────────────────────────────────────────
-const SUPABASE_URL     = 'https://xvkrrczwpjnqklvbppua.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2a3JyY3p3cGpucWtsdmJwcHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMjk1MDAsImV4cCI6MjA5NDgwNTUwMH0.rVydZNoCRHOQDicA4NGtAlCbU4iw8dNHfFzRjnrbsDk';
+const SUPABASE_URL     = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 // ─────────────────────────────────────────────────────────
 //  SUPABASE CLIENT
