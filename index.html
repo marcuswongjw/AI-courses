@@ -293,6 +293,14 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 }
 .star-btn:hover { opacity: .75; transform: scale(1.2); }
 .star-btn.starred { opacity: 1; filter: drop-shadow(0 0 4px rgba(251,191,36,.5)); }
+.filter-search {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 12px;
+  color: var(--text); font-family: var(--sans); font-size: 14px;
+  outline: none; transition: border-color .2s;
+}
+.filter-search:focus { border-color: var(--accent); background: var(--bg3); }
+.filter-search::placeholder { color: var(--text3); }
 .filter-star-btn {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: 8px; padding: 6px 14px;
@@ -702,9 +710,13 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 ════════════════════════════════════════════════════ -->
 <div id="auth-screen">
   <div class="auth-card">
-    <div class="auth-wordmark">AI Courses Audit<br><em>Tracker</em></div>
-    <div class="auth-sub"> Course Audit Platform</div> 
+    <div class="auth-wordmark">AI Courses<br><em>Audit Tracker</em></div>
+
+    <div class="auth-sub">Course Audit Platform</div>
     
+    <div class="auth-wordmark">AI Audit<br><em>Tracker</em></div>
+    <div class="auth-sub">Mystery Shopping &amp; Course Audit Platform</div
+
     <div id="auth-error" class="error-msg"></div>
 
     <!-- Login -->
@@ -768,7 +780,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
     <!-- COURSES TAB -->
     <div class="tab-panel active" id="tab-courses">
       <div class="page-title">Courses</div>
-      <div class="page-sub">Claim a course to audit. Shortlisted courses are highest priority.</div>
+      <div class="page-sub">Claim a course to audit. Tier 1 courses are highest priority.</div>
       <div id="courses-content"><div class="loading-state"><div class="spinner"></div>Loading courses…</div></div>
     </div>
 
@@ -844,7 +856,7 @@ const S = {
   audits: [],
   profiles: [],
   tab: 'courses',
-  filters: { status: '', tier: '', arch: '', recommended: false },
+  filters: { search: '', status: '', tier: '', arch: '', recommended: false },
   // In-memory form edits (auditId → {key:value,...})
   formEdits: {},
   // Autosave timers
@@ -982,6 +994,7 @@ function render() {
 // ─────────────────────────────────────────────────────────
 function renderCourses() {
   let courses = [...S.courses];
+  if (S.filters.search)      courses = courses.filter(c => c.name.toLowerCase().includes(S.filters.search.toLowerCase()) || (c.tgs_number||'').toLowerCase().includes(S.filters.search.toLowerCase()));
   if (S.filters.status)      courses = courses.filter(c => c.status === S.filters.status);
   if (S.filters.tier)        courses = courses.filter(c => c.pick  === S.filters.tier);
   if (S.filters.arch)        courses = courses.filter(c => c.archetype === S.filters.arch);
@@ -1032,28 +1045,37 @@ function renderCourses() {
     </tr>`;
   }).join('');
 
+  const hasFilters = S.filters.search || S.filters.status || S.filters.tier || S.filters.arch || S.filters.recommended;
   const recCount = S.courses.filter(c => c.recommended).length;
 
   qs('#courses-content').innerHTML = `
-    <div class="filters">
-      <select class="filter-select" onchange="S.filters.status=this.value;renderCourses()">
-        <option value="">All Statuses</option>
-        ${['Unassigned','Claimed','Confirmed','Completed'].map(s =>
-          `<option value="${s}" ${S.filters.status===s?'selected':''}>${s}</option>`).join('')}
-      </select>
-      <select class="filter-select" onchange="S.filters.tier=this.value;renderCourses()">
-        <option value="">All Tiers</option>
-        ${tiers().map(t => `<option value="${t}" ${S.filters.tier===t?'selected':''}>${esc(t)}</option>`).join('')}
-      </select>
-      <select class="filter-select" onchange="S.filters.arch=this.value;renderCourses()">
-        <option value="">All Archetypes</option>
-        ${['AI Literate Workers','AI Fluent Workers','AI Fluent Biz Leaders'].map(a =>
-          `<option value="${a}" ${S.filters.arch===a?'selected':''}>${a}</option>`).join('')}
-      </select>
-      <button class="filter-star-btn${S.filters.recommended?' active':''}" onclick="S.filters.recommended=!S.filters.recommended;renderCourses()">
-        ⭐ Recommended${recCount?' ('+recCount+')':''}
-      </button>
-      <span style="color:var(--text3);font-size:12px;margin-left:4px">${courses.length} course${courses.length!==1?'s':''}</span>
+    <div class="filters" style="flex-wrap:wrap;gap:8px">
+      <input class="filter-search" id="course-search" type="text"
+        placeholder="Search by name or TGS number…"
+        value="${esc(S.filters.search)}"
+        oninput="S.filters.search=this.value;renderCourses();qs('#course-search')?.focus()"
+        style="flex:1;min-width:220px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select class="filter-select" onchange="S.filters.status=this.value;renderCourses()">
+          <option value="">All Statuses</option>
+          ${['Unassigned','Claimed','Confirmed','Completed'].map(s =>
+            `<option value="${s}" ${S.filters.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <select class="filter-select" onchange="S.filters.tier=this.value;renderCourses()">
+          <option value="">All Tiers</option>
+          ${tiers().map(t => `<option value="${t}" ${S.filters.tier===t?'selected':''}>${esc(t)}</option>`).join('')}
+        </select>
+        <select class="filter-select" onchange="S.filters.arch=this.value;renderCourses()">
+          <option value="">All Archetypes</option>
+          ${['AI Literate Workers','AI Fluent Workers','AI Fluent Biz Leaders'].map(a =>
+            `<option value="${a}" ${S.filters.arch===a?'selected':''}>${a}</option>`).join('')}
+        </select>
+        <button class="filter-star-btn${S.filters.recommended?' active':''}" onclick="S.filters.recommended=!S.filters.recommended;renderCourses()">
+          ⭐ Recommended${recCount?' ('+recCount+')':''}
+        </button>
+        ${hasFilters ? `<button class="btn btn-secondary btn-sm" style="font-size:12px;white-space:nowrap" onclick="S.filters={search:'',status:'',tier:'',arch:'',recommended:false};renderCourses()">✕ Clear</button>` : ''}
+        <span style="color:var(--text3);font-size:12px;white-space:nowrap">${courses.length} course${courses.length!==1?'s':''}</span>
+      </div>
     </div>
     <div class="table-wrap">
       <table>
