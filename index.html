@@ -301,6 +301,12 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 }
 .filter-search:focus { border-color: var(--accent); background: var(--bg3); }
 .filter-search::placeholder { color: var(--text3); }
+.sort-th {
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.sort-th:hover { color: var(--text); }
+.sort-arrow { margin-left: 4px; font-size: 10px; opacity: .5; }
+.sort-arrow.active { opacity: 1; color: var(--accent); }
 .filter-star-btn {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: 8px; padding: 6px 14px;
@@ -853,6 +859,7 @@ const S = {
   profiles: [],
   tab: 'courses',
   filters: { search: '', status: '', tier: '', arch: '', recommended: false },
+  sort: { col: 'name', dir: 'asc' },
   // In-memory form edits (auditId → {key:value,...})
   formEdits: {},
   // Autosave timers
@@ -996,6 +1003,19 @@ function renderCourses() {
   if (S.filters.arch)        courses = courses.filter(c => c.archetype === S.filters.arch);
   if (S.filters.recommended) courses = courses.filter(c => c.recommended);
 
+  // Sort
+  const { col, dir } = S.sort;
+  const mult = dir === 'asc' ? 1 : -1;
+  courses.sort((a, b) => {
+    let av, bv;
+    if (col === 'name')      { av = a.name||'';      bv = b.name||''; }
+    else if (col === 'tier') { av = a.pick||'';      bv = b.pick||''; }
+    else if (col === 'arch') { av = a.archetype||''; bv = b.archetype||''; }
+    else if (col === 'status'){ av = a.status||'';   bv = b.status||''; }
+    else                     { av = a.name||'';      bv = b.name||''; }
+    return av.localeCompare(bv) * mult;
+  });
+
   const isAdmin = !!S.profile?.is_admin;
 
   const rows = courses.map(c => {
@@ -1049,7 +1069,7 @@ function renderCourses() {
       <input class="filter-search" id="course-search" type="text"
         placeholder="Search by name or TGS number…"
         value="${esc(S.filters.search)}"
-        oninput="S.filters.search=this.value;renderCourses();qs('#course-search')?.focus()"
+        oninput="const p=this.selectionStart;S.filters.search=this.value;renderCourses();const el=qs('#course-search');if(el){el.focus();el.setSelectionRange(p,p);}"
         style="flex:1;min-width:220px">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <select class="filter-select" onchange="S.filters.status=this.value;renderCourses()">
@@ -1076,8 +1096,18 @@ function renderCourses() {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Course Name</th><th>Tier</th><th>Archetype</th>
-          <th>Auditors</th><th>Status</th><th>Action</th>
+          ${[['name','Course Name'],['tier','Tier'],['arch','Archetype']].map(([c,label]) => {
+            const active = S.sort.col === c;
+            const arrow  = active ? (S.sort.dir === 'asc' ? '▲' : '▼') : '⇅';
+            return `<th class="sort-th" onclick="S.sort={col:'${c}',dir:S.sort.col==='${c}'&&S.sort.dir==='asc'?'desc':'asc'};renderCourses()">${label}<span class="sort-arrow${active?' active':''}">${arrow}</span></th>`;
+          }).join('')}
+          <th>Auditors</th>
+          ${[['status','Status']].map(([c,label]) => {
+            const active = S.sort.col === c;
+            const arrow  = active ? (S.sort.dir === 'asc' ? '▲' : '▼') : '⇅';
+            return `<th class="sort-th" onclick="S.sort={col:'${c}',dir:S.sort.col==='${c}'&&S.sort.dir==='asc'?'desc':'asc'};renderCourses()">${label}<span class="sort-arrow${active?' active':''}">${arrow}</span></th>`;
+          }).join('')}
+          <th>Action</th>
         </tr></thead>
         <tbody>${rows || '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-txt">No courses match the current filters.</div></div></td></tr>'}</tbody>
       </table>
