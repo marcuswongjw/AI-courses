@@ -497,6 +497,43 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 }
 .stat-lbl { font-family: var(--mono); font-size: 11px; color: var(--text2); }
 
+/* ─── NOTIFICATION BANNER ──────────────────────────────── */
+.notif-banner {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 18px; margin-bottom: 18px;
+}
+.notif-banner-title {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  margin-bottom: 10px; display: flex; align-items: center;
+  justify-content: space-between;
+}
+.notif-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text2);
+}
+.notif-item:last-child { border-bottom: none; padding-bottom: 0; }
+.notif-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0; margin-top: 4px;
+}
+.notif-dismiss {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; font-size: 18px; line-height: 1; padding: 0;
+  transition: color .15s;
+}
+.notif-dismiss:hover { color: var(--text); }
+
+/* ─── AUDITOR PROFILE MODAL ─────────────────────────────── */
+.auditor-link {
+  background: none; border: none; cursor: pointer;
+  color: var(--text); font-size: inherit; font-family: inherit;
+  padding: 0; text-align: left; text-decoration: underline;
+  text-decoration-color: transparent; text-underline-offset: 2px;
+  transition: text-decoration-color .15s, color .15s;
+}
+.auditor-link:hover { color: var(--accent); text-decoration-color: var(--accent); }
+
 .progress-card {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: 12px; padding: 18px 20px; margin-bottom: 14px;
@@ -665,8 +702,8 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 ════════════════════════════════════════════════════ -->
 <div id="auth-screen">
   <div class="auth-card">
-    <div class="auth-wordmark">AI Audit<br><em>Tracker</em></div>
-    <div class="auth-sub">Mystery Shopping &amp; Course Audit Platform</div>
+    <div class="auth-wordmark">AI Courses Audit<br><em>Tracker</em></div>
+    <div class="auth-sub">Course Audit Platform</div>
 
     <div id="auth-error" class="error-msg"></div>
 
@@ -710,7 +747,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 <div id="app" class="hidden">
 
   <header class="app-header">
-    <div class="app-wordmark">AI Audit <em>Tracker</em></div>
+    <div class="app-wordmark">AI Courses Audit <em>Tracker</em></div>
     <div class="header-right">
       <span class="header-admin-badge" id="hdr-admin" style="display:none">ADMIN</span>
       <span class="header-user" id="hdr-user"></span>
@@ -726,6 +763,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
   </nav>
 
   <main class="app-content">
+    <div id="notif-banner-wrap"></div>
 
     <!-- COURSES TAB -->
     <div class="tab-panel active" id="tab-courses">
@@ -906,6 +944,7 @@ async function loadAll() {
 
 async function reload() {
   await loadAll();
+  renderNotifications();
   render();
 }
 
@@ -1473,6 +1512,7 @@ function renderProgress() {
     const ua = S.audits.filter(a => a.user_id === p.id);
     if (!ua.length) return null;
     return {
+      id: p.id,
       name: p.full_name,
       claimed: ua.length,
       confirmed: ua.filter(a => a.confirmed).length,
@@ -1481,7 +1521,7 @@ function renderProgress() {
   }).filter(Boolean);
 
   const auditorRows = auditorStats.map(a => `<tr>
-    <td>${esc(a.name)}</td>
+    <td><button class="auditor-link" onclick="openAuditorModal('${a.id}')">${esc(a.name)}</button></td>
     <td><span class="badge b-claimed">${a.claimed}</span></td>
     <td><span class="badge b-confirmed">${a.confirmed}</span></td>
     <td><span class="badge b-completed">${a.submitted}</span></td>
@@ -2131,10 +2171,214 @@ function showApp() {
   qs('#admin-nav-tab').style.display = S.profile?.is_admin ? '' : 'none';
   S.tab = 'courses';
   qsa('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'courses'));
+  renderNotifications();
   render();
 }
 
 // ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
+//  NOTIFICATIONS
+// ─────────────────────────────────────────────────────────
+function renderNotifications() {
+  const wrap = qs('#notif-banner-wrap');
+  if (!wrap || !S.user) return;
+
+  const myAudits = S.audits.filter(a => a.user_id === S.user.id);
+  const items = [];
+
+  if (S.profile?.is_admin) {
+    // Admin notifications
+    const pending = S.audits.filter(a => !a.confirmed && !a.submitted_at && !a.rejection_reason);
+    if (pending.length)
+      items.push({ color: '#fbbf24', text: `${pending.length} claim${pending.length>1?'s':''} awaiting your confirmation.`, tab: 'admin' });
+    const newSubs = S.audits.filter(a => a.submitted_at);
+    if (newSubs.length)
+      items.push({ color: 'var(--green)', text: `${newSubs.length} evaluation${newSubs.length>1?'s have':' has'} been submitted.`, tab: 'admin' });
+  } else {
+    // Auditor notifications
+    const readyToFill = myAudits.filter(a => a.confirmed && !a.submitted_at && !a.rejection_reason);
+    if (readyToFill.length)
+      items.push({ color: 'var(--green)', text: `${readyToFill.length} course${readyToFill.length>1?'s are':' is'} confirmed and ready to evaluate.`, tab: 'myaudits' });
+
+    const rejected = myAudits.filter(a => a.rejection_reason);
+    if (rejected.length)
+      items.push({ color: 'var(--red)', text: `${rejected.length} of your claim${rejected.length>1?'s have':' has'} been rejected. Click to review.`, tab: 'myaudits' });
+
+    const pending = myAudits.filter(a => !a.confirmed && !a.submitted_at && !a.rejection_reason);
+    if (pending.length)
+      items.push({ color: 'var(--accent)', text: `${pending.length} claim${pending.length>1?'s are':' is'} awaiting admin confirmation.`, tab: 'myaudits' });
+  }
+
+  if (!items.length) { wrap.innerHTML = ''; return; }
+
+  wrap.innerHTML = `
+    <div class="notif-banner">
+      <div class="notif-banner-title">
+        <span>🔔 What needs your attention</span>
+        <button class="notif-dismiss" onclick="qs('#notif-banner-wrap').innerHTML=''" title="Dismiss">×</button>
+      </div>
+      ${items.map(i => `
+        <div class="notif-item" style="cursor:pointer" onclick="switchTab('${i.tab}');qs('#notif-banner-wrap').innerHTML=''">
+          <div class="notif-dot" style="background:${i.color}"></div>
+          <span>${i.text} <span style="color:var(--accent);font-size:12px">→ View</span></span>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  AUDITOR PROFILE MODAL
+// ─────────────────────────────────────────────────────────
+function openAuditorModal(userId) {
+  const p   = S.profiles.find(x => x.id === userId);
+  const ua  = S.audits.filter(a => a.user_id === userId);
+  if (!p) return;
+
+  qs('#auditor-modal-title').textContent = p.full_name;
+
+  const rows = ua.map(a => {
+    const c = S.courses.find(x => x.id === a.course_id);
+    if (!c) return '';
+    let stateLabel, stateColor;
+    if (a.submitted_at)        { stateLabel = 'Submitted';  stateColor = 'var(--green)'; }
+    else if (a.rejection_reason){ stateLabel = 'Rejected';  stateColor = 'var(--red)'; }
+    else if (a.confirmed)      { stateLabel = 'Confirmed';  stateColor = 'var(--accent)'; }
+    else                       { stateLabel = 'Pending';    stateColor = 'var(--amber)'; }
+    const date = a.preferred_date ? `<span style="font-size:11px;color:var(--text3)">${esc(a.preferred_date)}</span>` : '';
+    return `<tr>
+      <td style="max-width:260px">
+        <div style="font-weight:500;font-size:13px">${esc(c.name)}</div>
+        ${date}
+      </td>
+      <td>${tierBadgeHtml(c.pick)}</td>
+      <td><span style="font-size:12px;font-weight:600;color:${stateColor}">${stateLabel}</span></td>
+      ${S.profile?.is_admin ? `<td><button class="btn btn-secondary btn-sm" style="font-size:11px" onclick="closeAuditorModal();openFillOnBehalf('${a.id}','${userId}')">Fill Form</button></td>` : '<td></td>'}
+    </tr>`;
+  }).join('');
+
+  qs('#auditor-modal-body').innerHTML = ua.length ? `
+    <div class="table-wrap" style="margin:0">
+      <table>
+        <thead><tr><th>Course</th><th>Tier</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>` : `<p style="color:var(--text2);font-size:13px;padding:8px 0">No audits found for this user.</p>`;
+
+  qs('#auditor-modal').classList.add('open');
+}
+
+function closeAuditorModal() {
+  qs('#auditor-modal').classList.remove('open');
+}
+
+// ─────────────────────────────────────────────────────────
+//  ADMIN FILL ON BEHALF
+// ─────────────────────────────────────────────────────────
+let _fillAuditId = null, _fillUserId = null;
+
+function openFillOnBehalf(auditId, userId) {
+  const audit = S.audits.find(a => a.id === auditId);
+  const course = S.courses.find(c => c.id === audit?.course_id);
+  const auditor = S.profiles.find(p => p.id === userId);
+  if (!audit || !course) return;
+
+  // Temporarily override the audit's user to allow form rendering
+  _fillAuditId = auditId;
+  _fillUserId  = userId;
+
+  // Build a modal with the full eval form
+  const r = { ...(audit.responses||{}) };
+  const formHtml = buildAdminFillForm(audit, course, r);
+
+  // Reuse the edit-course modal slot but with custom content
+  qs('#ec-name').closest('.modal').querySelector('.modal-title').textContent =
+    `Fill for ${auditor?.full_name || 'Auditor'}: ${course.name}`;
+
+  // We'll use a dedicated modal - inject into auditor modal body
+  qs('#auditor-modal-title').textContent = `Fill Evaluation — ${auditor?.full_name || 'Auditor'}`;
+  qs('#auditor-modal-body').innerHTML = `
+    <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#fbbf24">
+      ⚠ You are filling this evaluation on behalf of <strong>${esc(auditor?.full_name||'')}</strong>.
+    </div>
+    ${formHtml}
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="closeAuditorModal()">Cancel</button>
+      <button class="btn btn-primary" style="width:auto" onclick="submitOnBehalf('${auditId}','${audit.course_id}')">Submit Evaluation</button>
+    </div>`;
+
+  qs('#auditor-modal').classList.add('open');
+}
+
+function buildAdminFillForm(audit, course, r) {
+  const id = audit.id;
+  const ratingField = (label, code, key, opts) => `
+    <div class="eval-field">
+      <div class="eval-field-label"><span class="field-code">${code}</span> ${label}</div>
+      <div class="rating-btns">${opts.map(o =>
+        `<button class="r-btn ${r[key]===o?'sel':''}" onclick="onRatingClick('${id}','${key}','${o}',this)">${esc(o)}</button>`
+      ).join('')}</div>
+    </div>`;
+  const textField = (label, code, key, ph) => `
+    <div class="eval-field">
+      <div class="eval-field-label"><span class="field-code">${code}</span> ${label}</div>
+      <textarea class="eval-ta" rows="3" placeholder="${ph}" onchange="onTextInput('${id}','${key}',this.value)">${esc(r[key]||'')}</textarea>
+    </div>`;
+
+  return `<div class="eval-form" style="max-height:55vh;overflow-y:auto;padding-right:4px">
+    <div class="eval-section">
+      <div class="eval-sec-head"><span class="eval-sec-code">A</span><span class="eval-sec-title">Industry Alignment</span></div>
+      <div class="eval-sec-body">
+        ${ratingField('Alignment rating','A1','a1',['Poor','Limited','Moderate','Strong','Excellent'])}
+        ${textField('Key industry trends or gaps observed','A2','a2','Describe key AI industry trends and gaps relevant to this course...')}
+      </div>
+    </div>
+    <div class="eval-section">
+      <div class="eval-sec-head"><span class="eval-sec-code">B</span><span class="eval-sec-title">AI Proficiency Level</span></div>
+      <div class="eval-sec-body">
+        ${ratingField('Difficulty level','B1','b1',['Significantly below','Below','Appropriate','Above','Significantly above'])}
+        ${ratingField('Learner differentiation','B2','b2',['No differentiation','Limited','Clear','Excellent'])}
+        ${textField('Evidence & observations','B3','b3','Describe evidence of proficiency differentiation...')}
+      </div>
+    </div>
+    <div class="eval-section">
+      <div class="eval-sec-head"><span class="eval-sec-code">C</span><span class="eval-sec-title">Skills Progression</span></div>
+      <div class="eval-sec-body">
+        ${ratingField('Skills gap coverage','C1','c1',['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'])}
+        ${textField('AI tools & platforms covered','C2','c2_tools','List AI tools, platforms, and technologies covered...')}
+        ${ratingField('Currency of tools','C3','c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}
+        ${textField('Remaining skills gaps','C4','c4','Identify any remaining skills gaps not addressed...')}
+      </div>
+    </div>
+    <div class="eval-section">
+      <div class="eval-sec-head"><span class="eval-sec-code">D</span><span class="eval-sec-title">Overall Assessment</span></div>
+      <div class="eval-sec-body">
+        ${ratingField('Overall recommendation','D1','d1',['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'])}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function submitOnBehalf(auditId, courseId) {
+  if (!confirm('Submit this evaluation on behalf of the auditor? This cannot be undone.')) return;
+
+  if (S.saveTimers[auditId]) { clearTimeout(S.saveTimers[auditId]); delete S.saveTimers[auditId]; }
+
+  const audit = S.audits.find(a => a.id === auditId);
+  const final = { ...(audit?.responses||{}), ...(S.formEdits[auditId]||{}) };
+
+  const { error } = await db.from('audits').update({
+    responses:    final,
+    submitted_at: new Date().toISOString()
+  }).eq('id', auditId);
+
+  if (error) return toast(error.message, 'error');
+
+  await db.from('courses').update({ status: 'Completed' }).eq('id', courseId);
+  delete S.formEdits[auditId];
+  closeAuditorModal();
+  toast('Evaluation submitted on behalf of auditor.', 'success');
+  await reload();
+}
+
 //  HELPERS
 // ─────────────────────────────────────────────────────────
 function profile(userId) { return S.profiles.find(p => p.id === userId); }
@@ -2186,6 +2430,7 @@ document.addEventListener('click', e => {
   if (e.target.id === 'modal-overlay')      closeModal();
   if (e.target.id === 'reject-modal')       closeRejectModal();
   if (e.target.id === 'edit-course-modal')  closeEditCourseModal();
+  if (e.target.id === 'auditor-modal')      closeAuditorModal();
 });
 
 // ─────────────────────────────────────────────────────────
@@ -2195,6 +2440,20 @@ init();
 </script>
 <!-- Edit Course Modal -->
 
+
+<!-- Auditor Profile Modal -->
+<div class="modal-overlay" id="auditor-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head">
+      <div class="modal-title" id="auditor-modal-title">Auditor Courses</div>
+      <button class="modal-x" onclick="closeAuditorModal()">×</button>
+    </div>
+    <div class="modal-body" id="auditor-modal-body" style="padding-top:10px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAuditorModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- Reject Claim Modal -->
 <div class="modal-overlay" id="reject-modal">
