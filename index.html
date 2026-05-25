@@ -702,8 +702,8 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 ════════════════════════════════════════════════════ -->
 <div id="auth-screen">
   <div class="auth-card">
-    <div class="auth-wordmark">AI Courses Audit<br><em>Tracker</em></div>
-    <div class="auth-sub">Course Audit Platform</div>
+    <div class="auth-wordmark">AI Audit<br><em>Tracker</em></div>
+    <div class="auth-sub">Mystery Shopping &amp; Course Audit Platform</div>
 
     <div id="auth-error" class="error-msg"></div>
 
@@ -747,7 +747,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 <div id="app" class="hidden">
 
   <header class="app-header">
-    <div class="app-wordmark">AI Courses Audit <em>Tracker</em></div>
+    <div class="app-wordmark">AI Audit <em>Tracker</em></div>
     <div class="header-right">
       <span class="header-admin-badge" id="hdr-admin" style="display:none">ADMIN</span>
       <span class="header-user" id="hdr-user"></span>
@@ -932,7 +932,7 @@ function setAuthLoading(on) {
 // ─────────────────────────────────────────────────────────
 async function loadAll() {
   const [cR, aR, pR] = await Promise.all([
-    db.from('courses').select('*').order('pick').order('name'),
+    db.from('courses').select('*').order('name'),
     db.from('audits').select('*'),
     db.from('profiles').select('*')
   ]);
@@ -981,7 +981,7 @@ function render() {
 function renderCourses() {
   let courses = [...S.courses];
   if (S.filters.status)      courses = courses.filter(c => c.status === S.filters.status);
-  if (S.filters.tier)        courses = courses.filter(c => c.pick  === parseInt(S.filters.tier));
+  if (S.filters.tier)        courses = courses.filter(c => c.pick  === S.filters.tier);
   if (S.filters.arch)        courses = courses.filter(c => c.archetype === S.filters.arch);
   if (S.filters.recommended) courses = courses.filter(c => c.recommended);
 
@@ -1041,7 +1041,7 @@ function renderCourses() {
       </select>
       <select class="filter-select" onchange="S.filters.tier=this.value;renderCourses()">
         <option value="">All Tiers</option>
-        ${tiers().map(t => `<option value="${t}" ${S.filters.tier==t?'selected':''}>Tier ${t}</option>`).join('')}
+        ${tiers().map(t => `<option value="${t}" ${S.filters.tier===t?'selected':''}>${esc(t)}</option>`).join('')}
       </select>
       <select class="filter-select" onchange="S.filters.arch=this.value;renderCourses()">
         <option value="">All Archetypes</option>
@@ -1168,7 +1168,7 @@ function renderMyAudits() {
         <div class="audit-card-head">
           <div>
             <div class="audit-card-title">${esc(course.name)}</div>
-            <div class="audit-card-meta">${esc(course.tgs_number||'')} · Tier ${course.pick} · Preferred: ${esc(audit.preferred_date||'—')}</div>
+            <div class="audit-card-meta">${esc(course.tgs_number||'')} · ${esc(course.pick||'')} · Preferred: ${esc(audit.preferred_date||'—')}</div>
           </div>
           <div>${badgeHtml(course.status)}</div>
         </div>
@@ -1483,11 +1483,11 @@ function renderProgress() {
     const tc = S.courses.filter(c => c.pick === t);
     const done = tc.filter(c => c.status === 'Completed').length;
     const p = tc.length ? Math.round(done / tc.length * 100) : 0;
-    const TIER_COLS = ['var(--accent)','var(--purple)','var(--text3)','#6ee7b7','#fdba74','#f0abfc'];
-    const col = TIER_COLS[(t - 1) % TIER_COLS.length];
+    const TIER_COLS = {'Top 35':'var(--accent)','Top 200':'var(--purple)'};
+    const col = TIER_COLS[t] || 'var(--text3)';
     return `<div class="prog-item">
       <div class="prog-meta">
-        <span class="prog-name">Tier ${t}</span>
+        <span class="prog-name">${esc(t)}</span>
         <span class="prog-count">${done}/${tc.length} · ${p}%</span>
       </div>
       <div class="prog-bar"><div class="prog-fill" style="width:${p}%;background:${col}"></div></div>
@@ -1648,7 +1648,8 @@ function renderAdmin() {
         </div>
         <div class="form-row">
           <div class="form-group"><label class="form-label">Tier</label>
-            <input class="form-input" id="nc-tier" type="number" min="1" placeholder="e.g. 1" value="1"></div>
+            <input class="form-input" id="nc-tier" type="text" placeholder="Top 35" list="tier-options" value="Top 35">
+            </div>
           <div class="form-group"><label class="form-label">Archetype</label>
             <select class="form-input" id="nc-arch">
               <option>AI Literate Workers</option>
@@ -1668,7 +1669,7 @@ function renderAdmin() {
       <div id="add-panel-bulk" style="display:none">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.7">
           <strong style="color:var(--text);display:block;margin-bottom:4px">CSV format — one course per row, no header row needed:</strong>
-          <code style="color:#7bb3ff;font-size:11px">TGS Number, Course Name, Tier (any number ≥ 1), Archetype, Run Dates, Fee</code><br>
+          <code style="color:#7bb3ff;font-size:11px">TGS Number, Course Name, Tier (Top 35 or Top 200), Archetype, Run Dates, Fee</code><br>
           <span style="color:var(--text3)">TGS Number and Fee are optional. Archetype must be one of: <em>AI Literate Workers</em>, <em>AI Fluent Workers</em>, <em>AI Fluent Biz Leaders</em></span><br>
           <strong style="color:var(--text);display:block;margin-top:6px;margin-bottom:2px">Example:</strong>
           <code style="color:var(--text2);font-size:11px">TGS-2024001234, Acme: AI for Beginners, 1, AI Literate Workers, "3 May, 10 May", $500<br>
@@ -1804,7 +1805,7 @@ function openEditCourseModal(courseId) {
   _editCourseId = courseId;
   qs('#ec-name').value   = c.name        || '';
   qs('#ec-tgs').value    = c.tgs_number  || '';
-  qs('#ec-tier').value   = c.pick        || 1;
+  qs('#ec-tier').value   = c.pick        || 'Top 35';
   qs('#ec-arch').value   = c.archetype   || 'AI Literate Workers';
   qs('#ec-dates').value  = c.next_run    || '';
   qs('#ec-fee').value    = c.course_fee  || '';
@@ -1821,8 +1822,8 @@ async function saveEditCourse() {
   if (!_editCourseId) return;
   const name = qs('#ec-name').value.trim();
   if (!name) return toast('Course name is required.', 'error');
-  const tier = parseInt(qs('#ec-tier').value);
-  if (!tier || tier < 1) return toast('Tier must be a number ≥ 1.', 'error');
+  const tier = qs('#ec-tier').value.trim();
+  if (!tier) return toast('Tier is required.', 'error');
 
   const { error } = await db.from('courses').update({
     name,
@@ -1933,7 +1934,7 @@ function downloadEvaluationsCSV() {
     ['Auditor',           null, a => profile(a.user_id)?.full_name || ''],
     ['Course Name',       null, a => S.courses.find(c => c.id === a.course_id)?.name || ''],
     ['TGS Number',        null, a => S.courses.find(c => c.id === a.course_id)?.tgs_number || ''],
-    ['Tier',              null, a => S.courses.find(c => c.id === a.course_id)?.pick || ''],
+    ['Tier',              null, a => S.courses.find(c => c.id === a.course_id)?.pick || ''],  // text value
     ['Archetype',         null, a => S.courses.find(c => c.id === a.course_id)?.archetype || ''],
     ['Preferred Date',    null, a => a.preferred_date || ''],
     ['Submitted',         null, a => a.submitted_at ? new Date(a.submitted_at).toLocaleDateString('en-SG', { day:'numeric', month:'short', year:'numeric' }) : ''],
@@ -2011,15 +2012,16 @@ function parseBulkCsv(raw) {
     const [tgs, name, tier, arch, dates, fee] = cols;
     const rowNum = i + 1;
     if (!name) { errors.push(`Row ${rowNum}: Course Name is required.`); return; }
-    const tierNum = parseInt(tier);
-    if (!tierNum || tierNum < 1) { errors.push(`Row ${rowNum}: Tier must be a number ≥ 1 (got "${tier}").`); return; }
+    const tierVal = tier?.trim();
+    const validTiers = ['Top 35', 'Top 200'];
+    if (!validTiers.includes(tierVal)) { errors.push(`Row ${rowNum}: Tier must be "Top 35" or "Top 200" (got "${tierVal}").`); return; }
     const archClean = arch?.trim();
     const archMatch = VALID_ARCHETYPES.find(a => a.toLowerCase() === archClean?.toLowerCase());
     if (!archMatch) { errors.push(`Row ${rowNum}: Archetype "${archClean}" not recognised. Use one of: ${VALID_ARCHETYPES.join(', ')}.`); return; }
     courses.push({
       tgs_number: tgs?.trim() || null,
       name: name.trim(),
-      pick: tierNum,
+      pick: tierVal,
       archetype: archMatch,
       next_run: dates?.trim() || 'TBC',
       course_fee: fee?.trim() || '—',
@@ -2037,7 +2039,7 @@ function dupReasons(c, seen) {
     if (c.tgs_number && ex.tgs_number && ex.tgs_number.toLowerCase() === c.tgs_number.toLowerCase())
       reasons.push(`TGS ${c.tgs_number} already exists ("${ex.name}")`);
     else if (ex.name.toLowerCase() === nameLower)
-      reasons.push(`Name already exists (Tier ${ex.pick})`);
+      reasons.push(`Name already exists (${ex.pick})`);
   }
   if (seen.names.has(nameLower)) reasons.push('Duplicate name within this import');
   if (c.tgs_number && seen.tgs.has(c.tgs_number.toLowerCase())) reasons.push('Duplicate TGS within this import');
@@ -2143,7 +2145,7 @@ async function adminAddCourse() {
   const { error } = await db.from('courses').insert({
     tgs_number: tgs,
     name,
-    pick: parseInt(qs('#nc-tier').value),
+    pick: qs('#nc-tier').value,
     archetype: qs('#nc-arch').value,
     status: 'Unassigned',
     next_run: qs('#nc-dates').value.trim() || 'TBC',
@@ -2385,14 +2387,17 @@ function profile(userId) { return S.profiles.find(p => p.id === userId); }
 
 // Returns sorted unique tier numbers present in the loaded courses
 function tiers() {
-  return [...new Set(S.courses.map(c => c.pick))].filter(Boolean).sort((a,b) => a-b);
+  return [...new Set(S.courses.map(c => c.pick))].filter(Boolean).sort();
 }
 
-// Badge for a tier number — uses CSS class b-t1…b-t6, inline style fallback for 7+
+// Badge for a tier text value — uses inline styles keyed on known tier names
 function tierBadgeHtml(t) {
-  const cls = t <= 6 ? `b-t${t}` : '';
-  const style = t > 6 ? ' style="background:rgba(148,163,184,.08);color:#94a3b8;border-color:rgba(148,163,184,.2)"' : '';
-  return `<span class="badge ${cls}"${style}>Tier ${t}</span>`;
+  const TIER_STYLES = {
+    'Top 35':  'background:rgba(74,143,255,.12);color:#7bb3ff;border-color:rgba(74,143,255,.25)',
+    'Top 200': 'background:rgba(167,139,250,.12);color:#c4b5fd;border-color:rgba(167,139,250,.25)',
+  };
+  const style = TIER_STYLES[t] || 'background:rgba(100,116,139,.08);color:#94a3b8;border-color:rgba(100,116,139,.18)';
+  return `<span class="badge" style="${style}">${esc(t)}</span>`;
 }
 
 function badgeHtml(status) {
@@ -2495,7 +2500,11 @@ init();
         </div>
         <div class="form-group" style="margin:0">
           <label class="form-label">Tier</label>
-          <input class="form-input" id="ec-tier" type="number" min="1">
+          <input class="form-input" id="ec-tier" type="text" placeholder="e.g. Top 35, Top 200" list="tier-options">
+          <datalist id="tier-options">
+            <option value="Top 35">
+            <option value="Top 200">
+          </datalist>
         </div>
       </div>
       <div class="form-group" style="margin:0">
