@@ -702,8 +702,8 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 ════════════════════════════════════════════════════ -->
 <div id="auth-screen">
   <div class="auth-card">
-    <div class="auth-wordmark">AI Audit<br><em>Tracker</em></div>
-    <div class="auth-sub">Mystery Shopping &amp; Course Audit Platform</div>
+    <div class="auth-wordmark">AI courses Audit<br><em>Tracker</em></div>
+    <div class="auth-sub">Course Audit Platform</div>
 
     <div id="auth-error" class="error-msg"></div>
 
@@ -747,7 +747,7 @@ tbody tr:hover { background: rgba(255,255,255,.015); }
 <div id="app" class="hidden">
 
   <header class="app-header">
-    <div class="app-wordmark">AI Audit <em>Tracker</em></div>
+    <div class="app-wordmark">AI Courses Audit <em>Tracker</em></div>
     <div class="header-right">
       <span class="header-admin-badge" id="hdr-admin" style="display:none">ADMIN</span>
       <span class="header-user" id="hdr-user"></span>
@@ -850,7 +850,8 @@ const S = {
   // Autosave timers
   saveTimers: {},
   // Pending claim
-  pendingClaim: { courseId: null, date: '' }
+  pendingClaim: { courseId: null, date: '' },
+  fillOnBehalf: null  // { auditId, userId } when admin fills for someone
 };
 
 // ─────────────────────────────────────────────────────────
@@ -952,6 +953,7 @@ async function reload() {
 //  NAVIGATION
 // ─────────────────────────────────────────────────────────
 function switchTab(tab) {
+  if (S.fillOnBehalf && tab !== 'myaudits') S.fillOnBehalf = null;
   S.tab = tab;
   qsa('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   render();
@@ -1145,8 +1147,37 @@ function closeModal() {
 //  MY AUDITS TAB
 // ─────────────────────────────────────────────────────────
 function renderMyAudits() {
-  const myAudits = S.audits.filter(a => a.user_id === S.user?.id);
   const el = qs('#myaudits-content');
+
+  // ── Fill on behalf mode (admin filling for another auditor) ──
+  if (S.fillOnBehalf) {
+    const { auditId, userId } = S.fillOnBehalf;
+    const audit   = S.audits.find(a => a.id === auditId);
+    const course  = audit ? S.courses.find(c => c.id === audit.course_id) : null;
+    const auditor = S.profiles.find(p => p.id === userId);
+    if (!audit || !course) {
+      S.fillOnBehalf = null;
+    } else {
+      el.innerHTML = `
+        <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);border-radius:10px;padding:12px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <span style="font-size:14px;color:#fbbf24">⚠ Filling evaluation on behalf of <strong>${esc(auditor?.full_name||'')}</strong></span>
+          <button class="btn btn-secondary btn-sm" onclick="S.fillOnBehalf=null;renderMyAudits()">✕ Exit fill mode</button>
+        </div>
+        <div class="audit-card">
+          <div class="audit-card-head">
+            <div>
+              <div class="audit-card-title">${esc(course.name)}</div>
+              <div class="audit-card-meta">${esc(course.tgs_number||'')} · ${esc(course.pick||'')} · Preferred: ${esc(audit.preferred_date||'—')}</div>
+            </div>
+            ${badgeHtml(course.status)}
+          </div>
+          <div class="audit-card-body">${buildActiveFormHtml(audit, course, true)}</div>
+        </div>`;
+      return;
+    }
+  }
+
+  const myAudits = S.audits.filter(a => a.user_id === S.user?.id);
 
   if (!myAudits.length) {
     el.innerHTML = `<div class="empty-state">
@@ -1198,7 +1229,7 @@ function buildFormHtml(audit, course) {
   return buildActiveFormHtml(audit, course);
 }
 
-function buildActiveFormHtml(audit, course) {
+function buildActiveFormHtml(audit, course, onBehalf = false) {
   const r = { ...(audit.responses||{}), ...(S.formEdits[audit.id]||{}) };
   const id = audit.id;
 
@@ -1282,8 +1313,8 @@ function buildActiveFormHtml(audit, course) {
           <div class="as-dot" id="as-dot-${id}"></div>
           <span id="as-txt-${id}">All changes saved</span>
         </div>
-        <button class="btn btn-green" onclick="submitAudit('${id}','${course.id}')">
-          Submit Evaluation →
+        <button class="btn btn-green" onclick="${onBehalf ? `submitOnBehalf('${id}','${course.id}')` : `submitAudit('${id}','${course.id}')`}">
+          ${onBehalf ? 'Submit on Behalf →' : 'Submit Evaluation →'}
         </button>
       </div>
     </div>`;
@@ -2275,88 +2306,13 @@ function closeAuditorModal() {
 // ─────────────────────────────────────────────────────────
 //  ADMIN FILL ON BEHALF
 // ─────────────────────────────────────────────────────────
-let _fillAuditId = null, _fillUserId = null;
-
 function openFillOnBehalf(auditId, userId) {
   const audit = S.audits.find(a => a.id === auditId);
   const course = S.courses.find(c => c.id === audit?.course_id);
-  const auditor = S.profiles.find(p => p.id === userId);
   if (!audit || !course) return;
-
-  // Temporarily override the audit's user to allow form rendering
-  _fillAuditId = auditId;
-  _fillUserId  = userId;
-
-  // Build a modal with the full eval form
-  const r = { ...(audit.responses||{}) };
-  const formHtml = buildAdminFillForm(audit, course, r);
-
-  // Reuse the edit-course modal slot but with custom content
-  qs('#ec-name').closest('.modal').querySelector('.modal-title').textContent =
-    `Fill for ${auditor?.full_name || 'Auditor'}: ${course.name}`;
-
-  // We'll use a dedicated modal - inject into auditor modal body
-  qs('#auditor-modal-title').textContent = `Fill Evaluation — ${auditor?.full_name || 'Auditor'}`;
-  qs('#auditor-modal-body').innerHTML = `
-    <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#fbbf24">
-      ⚠ You are filling this evaluation on behalf of <strong>${esc(auditor?.full_name||'')}</strong>.
-    </div>
-    ${formHtml}
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
-      <button class="btn btn-secondary" onclick="closeAuditorModal()">Cancel</button>
-      <button class="btn btn-primary" style="width:auto" onclick="submitOnBehalf('${auditId}','${audit.course_id}')">Submit Evaluation</button>
-    </div>`;
-
-  qs('#auditor-modal').classList.add('open');
-}
-
-function buildAdminFillForm(audit, course, r) {
-  const id = audit.id;
-  const ratingField = (label, code, key, opts) => `
-    <div class="eval-field">
-      <div class="eval-field-label"><span class="field-code">${code}</span> ${label}</div>
-      <div class="rating-btns">${opts.map(o =>
-        `<button class="r-btn ${r[key]===o?'sel':''}" onclick="onRatingClick('${id}','${key}','${o}',this)">${esc(o)}</button>`
-      ).join('')}</div>
-    </div>`;
-  const textField = (label, code, key, ph) => `
-    <div class="eval-field">
-      <div class="eval-field-label"><span class="field-code">${code}</span> ${label}</div>
-      <textarea class="eval-ta" rows="3" placeholder="${ph}" onchange="onTextInput('${id}','${key}',this.value)">${esc(r[key]||'')}</textarea>
-    </div>`;
-
-  return `<div class="eval-form" style="max-height:55vh;overflow-y:auto;padding-right:4px">
-    <div class="eval-section">
-      <div class="eval-sec-head"><span class="eval-sec-code">A</span><span class="eval-sec-title">Industry Alignment</span></div>
-      <div class="eval-sec-body">
-        ${ratingField('Alignment rating','A1','a1',['Poor','Limited','Moderate','Strong','Excellent'])}
-        ${textField('Key industry trends or gaps observed','A2','a2','Describe key AI industry trends and gaps relevant to this course...')}
-      </div>
-    </div>
-    <div class="eval-section">
-      <div class="eval-sec-head"><span class="eval-sec-code">B</span><span class="eval-sec-title">AI Proficiency Level</span></div>
-      <div class="eval-sec-body">
-        ${ratingField('Difficulty level','B1','b1',['Significantly below','Below','Appropriate','Above','Significantly above'])}
-        ${ratingField('Learner differentiation','B2','b2',['No differentiation','Limited','Clear','Excellent'])}
-        ${textField('Evidence & observations','B3','b3','Describe evidence of proficiency differentiation...')}
-      </div>
-    </div>
-    <div class="eval-section">
-      <div class="eval-sec-head"><span class="eval-sec-code">C</span><span class="eval-sec-title">Skills Progression</span></div>
-      <div class="eval-sec-body">
-        ${ratingField('Skills gap coverage','C1','c1',['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'])}
-        ${textField('AI tools & platforms covered','C2','c2_tools','List AI tools, platforms, and technologies covered...')}
-        ${ratingField('Currency of tools','C3','c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}
-        ${textField('Remaining skills gaps','C4','c4','Identify any remaining skills gaps not addressed...')}
-      </div>
-    </div>
-    <div class="eval-section">
-      <div class="eval-sec-head"><span class="eval-sec-code">D</span><span class="eval-sec-title">Overall Assessment</span></div>
-      <div class="eval-sec-body">
-        ${ratingField('Overall recommendation','D1','d1',['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'])}
-      </div>
-    </div>
-  </div>`;
+  closeAuditorModal();
+  S.fillOnBehalf = { auditId, userId };
+  switchTab('myaudits');
 }
 
 async function submitOnBehalf(auditId, courseId) {
@@ -2376,7 +2332,7 @@ async function submitOnBehalf(auditId, courseId) {
 
   await db.from('courses').update({ status: 'Completed' }).eq('id', courseId);
   delete S.formEdits[auditId];
-  closeAuditorModal();
+  S.fillOnBehalf = null;
   toast('Evaluation submitted on behalf of auditor.', 'success');
   await reload();
 }
