@@ -800,9 +800,9 @@ function renderProgress(){
     return`<div class="prog-item"><div class="prog-meta"><span class="prog-name" style="font-size:12px">${esc(a)}</span><span class="prog-count">${done}/${ac.length} · ${p}%</span></div><div class="prog-bar"><div class="prog-fill" style="width:${p}%;background:var(--green)"></div></div></div>`;
   }).join('');
   const auditorStats=S.profiles.map(p=>{
-    const ua=S.audits.filter(a=>a.user_id===p.id);if(!ua.length)return null;
+    const ua=S.audits.filter(a=>a.user_id===p.id);
     return{id:p.id,name:p.full_name,claimed:ua.length,confirmed:ua.filter(a=>a.confirmed).length,submitted:ua.filter(a=>a.submitted_at).length};
-  }).filter(Boolean);
+  }).sort((a,b)=>b.claimed-a.claimed||a.name.localeCompare(b.name));
   const auditorRows=auditorStats.map(a=>`<tr>
     <td><button class="auditor-link" onclick="openAuditorModal('${a.id}')">${esc(a.name)}</button></td>
     <td><span class="badge b-claimed">${a.claimed}</span></td>
