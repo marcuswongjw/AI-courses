@@ -488,6 +488,7 @@ function openCourseDetailModal(courseId) {
     ${infoRow('Run Dates', dateList || '<span style="color:var(--text3)">TBC</span>')}
     ${infoRow('Status', badgeHtml(c.status))}
     ${auditorNames.length ? infoRow('Auditors', auditorList) : ''}
+    ${c.remarks ? infoRow('Remarks', `<span style="color:var(--text2)">${esc(c.remarks)}</span>`) : ''}
   </div>`;
 
   const footer = qs('#cd-footer');
@@ -549,6 +550,18 @@ function renderCourses() {
       <td><div style="display:flex;align-items:center;gap:6px">${starBtn}<button class="auditor-link" style="font-size:14px;font-weight:500;text-align:left;line-height:1.35;max-width:200px;display:inline-block" onclick="openCourseDetailModal('${c.id}')">${esc(c.name)}</button></div></td>
       <td><span style="font-size:12px;color:var(--text2)">${esc(c.archetype)}</span></td>
       <td style="font-size:12px;color:var(--text2);max-width:160px;line-height:1.4">${esc(c.next_run||'TBC')}</td>
+      <td style="max-width:200px">
+        ${isAdmin
+          ? `<textarea
+               style="width:100%;font-size:12px;color:var(--text);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:5px 8px;resize:vertical;min-height:36px;font-family:var(--sans);line-height:1.4;outline:none"
+               placeholder="Add remark…"
+               onchange="saveRemark('${c.id}',this.value)"
+               onfocus="this.style.borderColor='var(--accent)'"
+               onblur="this.style.borderColor='var(--border)'"
+             >${esc(c.remarks||'')}</textarea>`
+          : `<span style="font-size:12px;color:var(--text2);line-height:1.4">${esc(c.remarks||'')}</span>`
+        }
+      </td>
       <td>${statusBadge}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         ${action}
@@ -586,6 +599,7 @@ function renderCourses() {
             return`<th class="sort-th" onclick="S.sort={col:'${c}',dir:S.sort.col==='${c}'&&S.sort.dir==='asc'?'desc':'asc'};renderCourses()">${label}<span class="sort-arrow${active?' active':''}">${arrow}</span></th>`;
           }).join('')}
           <th>Run Dates</th>
+          <th>Admin Remarks</th>
           ${[['status','Status']].map(([c,label])=>{
             const active=S.sort.col===c,arrow=active?(S.sort.dir==='asc'?'▲':'▼'):'⇅';
             return`<th class="sort-th" onclick="S.sort={col:'${c}',dir:S.sort.col==='${c}'&&S.sort.dir==='asc'?'desc':'asc'};renderCourses()">${label}<span class="sort-arrow${active?' active':''}">${arrow}</span></th>`;
@@ -781,6 +795,14 @@ async function submitAudit(auditId,courseId){
   if(error)return toast(error.message,'error');
   await db.from('courses').update({status:'Completed'}).eq('id',courseId);
   toast('Evaluation submitted successfully!','success');delete S.formEdits[auditId];await reload();
+}
+
+async function saveRemark(courseId, value) {
+  const { error } = await db.from('courses').update({ remarks: value }).eq('id', courseId);
+  if (!error) {
+    const course = S.courses.find(c => c.id === courseId);
+    if (course) course.remarks = value;
+  }
 }
 
 function renderProgress(){
