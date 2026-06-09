@@ -55,7 +55,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 .header-right{display:flex;align-items:center;gap:12px}
 .header-user{font-size:13px;color:var(--text2)}
 .header-admin-badge{background:rgba(240,165,0,.12);color:var(--amber);border:1px solid rgba(240,165,0,.25);border-radius:5px;padding:2px 8px;font-size:11px;font-family:var(--mono)}
-.app-nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:2px;overflow-x:auto}
+.app-nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:2px;overflow-x:auto;position:sticky;top:54px;z-index:99}
 .app-nav::-webkit-scrollbar{display:none}
 .nav-tab{padding:13px 15px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text2);font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s;margin-bottom:-1px}
 .nav-tab:hover{color:var(--text)}
@@ -347,12 +347,15 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group" style="margin:0"><label class="form-label">TGS Number</label><input class="form-input" id="ec-tgs" type="text" placeholder="TGS-2024000000"></div>
         <div class="form-group" style="margin:0"><label class="form-label">Tier</label>
-          <input class="form-input" id="ec-tier" type="text" placeholder="Top 35" list="tier-options">
-          <datalist id="tier-options"><option value="Top 35"><option value="Top 200"></datalist>
+          <input class="form-input" id="ec-tier" type="text" placeholder="Top Pick" list="tier-options">
+          <datalist id="tier-options"><option value="Top Pick"><option value="Top 200"></datalist>
         </div>
       </div>
       <div class="form-group" style="margin:0"><label class="form-label">Archetype</label>
         <select class="form-input" id="ec-arch"><option>AI Literate Workers</option><option>AI Fluent Workers</option><option>AI Fluent Biz Leaders</option></select>
+      </div>
+      <div class="form-group" style="margin:0"><label class="form-label">Training Provider</label>
+        <input class="form-input" id="ec-provider" type="text" placeholder="e.g. SMU">
       </div>
       <div class="form-group" style="margin:0"><label class="form-label">Run Dates</label>
         <input class="form-input" id="ec-dates" type="text" placeholder="e.g. 3 May, 10 May, TBC">
@@ -815,7 +818,7 @@ function renderProgress(){
   const activeAuditors=new Set(S.audits.map(a=>a.user_id)).size,pct=total?Math.round(completed/total*100):0;
   const tierRows=tiers().map(t=>{
     const tc=S.courses.filter(c=>c.pick===t),done=tc.filter(c=>c.status==='Completed').length,p=tc.length?Math.round(done/tc.length*100):0;
-    const TIER_COLS={'Top 35':'var(--accent)','Top 200':'var(--purple)'};
+    const TIER_COLS={'Top Pick':'var(--accent)','Top 200':'var(--purple)'};
     const col=TIER_COLS[t]||'var(--text3)';
     return`<div class="prog-item"><div class="prog-meta"><span class="prog-name">${esc(t)}</span><span class="prog-count">${done}/${tc.length} · ${p}%</span></div><div class="prog-bar"><div class="prog-fill" style="width:${p}%;background:${col}"></div></div></div>`;
   }).join('');
@@ -884,7 +887,7 @@ function renderAdmin(){
           <div class="form-group"><label class="form-label">Course Name *</label><input class="form-input" id="nc-name" placeholder="Provider: Course Name"></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label class="form-label">Tier</label><input class="form-input" id="nc-tier" type="text" placeholder="Top 35" list="add-tier-options" value="Top 35"><datalist id="add-tier-options"><option value="Top 35"><option value="Top 200"></datalist></div>
+          <div class="form-group"><label class="form-label">Tier</label><input class="form-input" id="nc-tier" type="text" placeholder="Top Pick" list="add-tier-options" value="Top 200"><datalist id="add-tier-options"><option value="Top Pick"><option value="Top 200"></datalist></div>
           <div class="form-group"><label class="form-label">Archetype</label><select class="form-input" id="nc-arch"><option>AI Literate Workers</option><option>AI Fluent Workers</option><option>AI Fluent Biz Leaders</option></select></div>
           <div class="form-group"><label class="form-label">Course Fee</label><input class="form-input" id="nc-fee" placeholder="$300"></div>
         </div>
@@ -961,15 +964,16 @@ let _editCourseId=null;
 function openEditCourseModal(courseId){
   const c=S.courses.find(x=>x.id===courseId);if(!c)return;
   _editCourseId=courseId;
-  qs('#ec-name').value=c.name||'';qs('#ec-tgs').value=c.tgs_number||'';qs('#ec-tier').value=c.pick||'Top 35';
+  qs('#ec-name').value=c.name||'';qs('#ec-tgs').value=c.tgs_number||'';qs('#ec-tier').value=c.pick||'Top 200';
   qs('#ec-arch').value=c.archetype||'AI Literate Workers';qs('#ec-dates').value=c.next_run||'';qs('#ec-fee').value=c.course_fee||'';qs('#ec-status').value=c.status||'Unassigned';
+  qs('#ec-provider').value=c.training_provider||'';
   qs('#edit-course-modal').classList.add('open');
 }
 function closeEditCourseModal(){qs('#edit-course-modal').classList.remove('open');_editCourseId=null;}
 async function saveEditCourse(){
   if(!_editCourseId)return;
   const name=qs('#ec-name').value.trim();if(!name)return toast('Course name is required.','error');
-  const{error}=await db.from('courses').update({name,tgs_number:qs('#ec-tgs').value.trim()||null,pick:qs('#ec-tier').value.trim(),archetype:qs('#ec-arch').value,next_run:qs('#ec-dates').value.trim()||'TBC',course_fee:qs('#ec-fee').value.trim()||'—',status:qs('#ec-status').value}).eq('id',_editCourseId);
+  const{error}=await db.from('courses').update({name,tgs_number:qs('#ec-tgs').value.trim()||null,pick:qs('#ec-tier').value.trim(),archetype:qs('#ec-arch').value,next_run:qs('#ec-dates').value.trim()||'TBC',course_fee:qs('#ec-fee').value.trim()||'—',status:qs('#ec-status').value,training_provider:qs('#ec-provider').value.trim()||null}).eq('id',_editCourseId);
   if(error)return toast(error.message,'error');
   closeEditCourseModal();toast('Course updated!','success');await reload();
 }
@@ -1044,7 +1048,7 @@ function showApp(){
 function profile(userId){return S.profiles.find(p=>p.id===userId);}
 function tiers(){return[...new Set(S.courses.map(c=>c.pick))].filter(Boolean).sort();}
 function tierBadgeHtml(t){
-  const TIER_STYLES={'Top 35':'background:rgba(74,143,255,.12);color:#7bb3ff;border-color:rgba(74,143,255,.25)','Top 200':'background:rgba(167,139,250,.12);color:#c4b5fd;border-color:rgba(167,139,250,.25)'};
+  const TIER_STYLES={'Top Pick':'background:rgba(74,143,255,.12);color:#7bb3ff;border-color:rgba(74,143,255,.25)','Top 200':'background:rgba(167,139,250,.12);color:#c4b5fd;border-color:rgba(167,139,250,.25)'};
   const style=TIER_STYLES[t]||'background:rgba(100,116,139,.08);color:#94a3b8;border-color:rgba(100,116,139,.18)';
   return`<span class="badge" style="${style}">${esc(t)}</span>`;
 }
