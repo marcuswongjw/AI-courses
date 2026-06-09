@@ -358,8 +358,8 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
         <input class="form-input" id="ec-provider" type="text" placeholder="e.g. SMU">
       </div>
       <div class="form-group" style="margin:0"><label class="form-label">Run Dates</label>
-        <input class="form-input" id="ec-dates" type="text" placeholder="e.g. 3 May, 10 May, TBC">
-        <div style="font-size:12px;color:var(--text3);margin-top:5px">Separate multiple dates with commas.</div>
+        <input class="form-input" id="ec-dates" type="text" placeholder="e.g. 3 May; 10 May; 2-3 Jun">
+        <div style="font-size:12px;color:var(--text3);margin-top:5px">Separate multiple run dates with semicolons ( ; ). Use commas within a date for multi-day runs, e.g. 1, 2, 3 Jun.</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group" style="margin:0"><label class="form-label">Course Fee</label><input class="form-input" id="ec-fee" type="text" placeholder="$500"></div>
@@ -892,7 +892,7 @@ function renderAdmin(){
           <div class="form-group"><label class="form-label">Course Fee</label><input class="form-input" id="nc-fee" placeholder="$300"></div>
         </div>
         <div class="form-row">
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Run Dates (comma-separated)</label><input class="form-input" id="nc-dates" placeholder="1-3 May, 15-17 May, TBC"></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Run Dates (comma-separated)</label><input class="form-input" id="nc-dates" placeholder="1-3 May; 15-17 May; TBC"></div>
         </div>
         <button class="btn btn-primary" style="width:auto;min-width:140px" onclick="adminAddCourse()">Add Course</button>
       </div>
@@ -1058,7 +1058,7 @@ function badgeHtml(status){
 }
 function parseRunDates(nextRun){
   if(!nextRun||nextRun==='TBC'||nextRun==='—')return['TBC – Date to be confirmed'];
-  return nextRun.split(',').map(d=>d.trim()).filter(Boolean);
+  return nextRun.split(';').map(d=>d.trim()).filter(Boolean);
 }
 function esc(str){if(str===null||str===undefined)return'';return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function qs(sel){return document.querySelector(sel);}
