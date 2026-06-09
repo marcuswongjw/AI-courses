@@ -484,6 +484,7 @@ function openCourseDetailModal(courseId) {
     ${c.tgs_number ? infoRow('TGS Number', `<span style="font-family:var(--mono);font-size:12px">${esc(c.tgs_number)}</span>`) : ''}
     ${infoRow('Tier', tierBadgeHtml(c.pick))}
     ${infoRow('Archetype', `<span style="color:var(--text2)">${esc(c.archetype)}</span>`)}
+    ${infoRow('Training Provider', `<span style="color:var(--text2)">${esc(c.training_provider||'—')}</span>`)}
     ${infoRow('Course Fee', c.course_fee && c.course_fee !== '—' ? `<strong>${esc(c.course_fee)}</strong>` : '<span style="color:var(--text3)">—</span>')}
     ${infoRow('Run Dates', dateList || '<span style="color:var(--text3)">TBC</span>')}
     ${infoRow('Status', badgeHtml(c.status))}
@@ -518,6 +519,7 @@ function renderCourses() {
     let av,bv;
     if(col==='name'){av=a.name||'';bv=b.name||'';}
     else if(col==='arch'){av=a.archetype||'';bv=b.archetype||'';}
+    else if(col==='provider'){av=a.training_provider||'';bv=b.training_provider||'';}
     else if(col==='status'){av=a.status||'';bv=b.status||'';}
     else{av=a.name||'';bv=b.name||'';}
     return av.localeCompare(bv)*mult;
@@ -549,7 +551,8 @@ function renderCourses() {
     return `<tr${c.recommended?' style="background:rgba(251,191,36,.03)"':''}>
       <td><div style="display:flex;align-items:center;gap:6px">${starBtn}<button class="auditor-link" style="font-size:14px;font-weight:500;text-align:left;line-height:1.35;max-width:200px;display:inline-block" onclick="openCourseDetailModal('${c.id}')">${esc(c.name)}</button></div></td>
       <td><span style="font-size:12px;color:var(--text2)">${esc(c.archetype)}</span></td>
-      <td style="font-size:12px;color:var(--text2);max-width:160px;line-height:1.4">${esc(c.next_run||'TBC')}</td>
+      <td style="font-size:12px;color:var(--text2);max-width:140px;line-height:1.4">${esc(c.training_provider||'—')}</td>
+      <td style="font-size:12px;color:var(--text2);max-width:140px;line-height:1.4">${esc(c.next_run||'TBC')}</td>
       <td style="max-width:200px">
         ${isAdmin
           ? `<textarea
@@ -594,7 +597,7 @@ function renderCourses() {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          ${[['name','Course Name'],['arch','Archetype']].map(([c,label])=>{
+          ${[['name','Course Name'],['arch','Archetype'],['provider','Training Provider']].map(([c,label])=>{
             const active=S.sort.col===c,arrow=active?(S.sort.dir==='asc'?'▲':'▼'):'⇅';
             return`<th class="sort-th" onclick="S.sort={col:'${c}',dir:S.sort.col==='${c}'&&S.sort.dir==='asc'?'desc':'asc'};renderCourses()">${label}<span class="sort-arrow${active?' active':''}">${arrow}</span></th>`;
           }).join('')}
