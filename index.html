@@ -367,6 +367,12 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
           <select class="form-input" id="ec-status"><option>Unassigned</option><option>Claimed</option><option>Confirmed</option><option>Completed</option></select>
         </div>
       </div>
+      <div class="form-group" style="margin:0"><label class="form-label">About this course</label>
+        <textarea class="form-input" id="ec-about" rows="4" style="resize:vertical;min-height:80px" placeholder="Paste course description from MySkillsFuture…"></textarea>
+      </div>
+      <div class="form-group" style="margin:0"><label class="form-label">What you'll learn</label>
+        <textarea class="form-input" id="ec-learn" rows="4" style="resize:vertical;min-height:80px" placeholder="Paste learning outcomes from MySkillsFuture…"></textarea>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeEditCourseModal()">Cancel</button>
@@ -387,7 +393,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const S = {
   user:null,profile:null,courses:[],audits:[],profiles:[],
   tab:'courses',
-  filters:{search:'',status:'',tier:'',arch:'',recommended:false},
+  filters:{search:'',status:'',tier:'',arch:'',provider:'',recommended:false},
   sort:{col:'name',dir:'asc'},
   formEdits:{},saveTimers:{},
   pendingClaim:{courseId:null,date:''},
@@ -493,7 +499,20 @@ function openCourseDetailModal(courseId) {
     ${infoRow('Status', badgeHtml(c.status))}
     ${auditorNames.length ? infoRow('Auditors', auditorList) : ''}
     ${c.remarks ? infoRow('Remarks', `<span style="color:var(--text2)">${esc(c.remarks)}</span>`) : ''}
-  </div>`;
+  </div>
+  ${c.about_course || c.what_youll_learn ? `
+  <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">
+    ${c.about_course ? `
+    <div style="margin-bottom:14px">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">About this course</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.65;white-space:pre-wrap">${esc(c.about_course)}</div>
+    </div>` : ''}
+    ${c.what_youll_learn ? `
+    <div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">What you'll learn</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.65;white-space:pre-wrap">${esc(c.what_youll_learn)}</div>
+    </div>` : ''}
+  </div>` : ''}`;
 
   const footer = qs('#cd-footer');
   let actionBtn = '';
@@ -516,6 +535,7 @@ function renderCourses() {
   if(S.filters.tier)   courses=courses.filter(c=>c.pick===S.filters.tier);
   if(S.filters.arch)   courses=courses.filter(c=>c.archetype===S.filters.arch);
   if(S.filters.recommended) courses=courses.filter(c=>c.recommended);
+  if(S.filters.provider) courses=courses.filter(c=>c.training_provider===S.filters.provider);
 
   const{col,dir}=S.sort,mult=dir==='asc'?1:-1;
   courses.sort((a,b)=>{
@@ -590,10 +610,14 @@ function renderCourses() {
           <option value="">All Archetypes</option>
           ${['AI Literate Workers','AI Fluent Workers','AI Fluent Biz Leaders'].map(a=>`<option value="${a}" ${S.filters.arch===a?'selected':''}>${a}</option>`).join('')}
         </select>
+        <select class="filter-select" onchange="S.filters.provider=this.value;renderCourses()" style="max-width:180px">
+          <option value="">All Providers</option>
+          ${[...new Set(S.courses.map(c=>c.training_provider).filter(Boolean))].sort().map(p=>`<option value="${p}" ${S.filters.provider===p?'selected':''}>${esc(p)}</option>`).join('')}
+        </select>
         <button class="filter-star-btn${S.filters.recommended?' active':''}" onclick="S.filters.recommended=!S.filters.recommended;renderCourses()">
           ⭐ Recommended${recCount?' ('+recCount+')':''}
         </button>
-        ${hasFilters?`<button class="btn btn-secondary btn-sm" style="font-size:12px;white-space:nowrap" onclick="S.filters={search:'',status:'',tier:'',arch:'',recommended:false};renderCourses()">✕ Clear</button>`:''}
+        ${hasFilters?`<button class="btn btn-secondary btn-sm" style="font-size:12px;white-space:nowrap" onclick="S.filters={search:'',status:'',tier:'',arch:'',provider:'',recommended:false};renderCourses()">✕ Clear</button>`:''}
         <span style="color:var(--text3);font-size:12px;white-space:nowrap">${courses.length} course${courses.length!==1?'s':''}</span>
       </div>
     </div>
@@ -967,13 +991,17 @@ function openEditCourseModal(courseId){
   qs('#ec-name').value=c.name||'';qs('#ec-tgs').value=c.tgs_number||'';qs('#ec-tier').value=c.pick||'Top 200';
   qs('#ec-arch').value=c.archetype||'AI Literate Workers';qs('#ec-dates').value=c.next_run||'';qs('#ec-fee').value=c.course_fee||'';qs('#ec-status').value=c.status||'Unassigned';
   qs('#ec-provider').value=c.training_provider||'';
+  qs('#ec-about').value=c.about_course||'';
+  qs('#ec-learn').value=c.what_youll_learn||'';
   qs('#edit-course-modal').classList.add('open');
 }
 function closeEditCourseModal(){qs('#edit-course-modal').classList.remove('open');_editCourseId=null;}
 async function saveEditCourse(){
   if(!_editCourseId)return;
   const name=qs('#ec-name').value.trim();if(!name)return toast('Course name is required.','error');
-  const{error}=await db.from('courses').update({name,tgs_number:qs('#ec-tgs').value.trim()||null,pick:qs('#ec-tier').value.trim(),archetype:qs('#ec-arch').value,next_run:qs('#ec-dates').value.trim()||'TBC',course_fee:qs('#ec-fee').value.trim()||'—',status:qs('#ec-status').value,training_provider:qs('#ec-provider').value.trim()||null}).eq('id',_editCourseId);
+  const{error}=await db.from('courses').update({name,tgs_number:qs('#ec-tgs').value.trim()||null,pick:qs('#ec-tier').value.trim(),archetype:qs('#ec-arch').value,next_run:qs('#ec-dates').value.trim()||'TBC',course_fee:qs('#ec-fee').value.trim()||'—',status:qs('#ec-status').value,training_provider:qs('#ec-provider').value.trim()||null,
+    about_course:qs('#ec-about').value.trim()||null,
+    what_youll_learn:qs('#ec-learn').value.trim()||null}).eq('id',_editCourseId);
   if(error)return toast(error.message,'error');
   closeEditCourseModal();toast('Course updated!','success');await reload();
 }
