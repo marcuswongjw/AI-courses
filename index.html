@@ -880,28 +880,50 @@ function renderAdmin(){
   const el=qs('#admin-content');
   if(!S.profile?.is_admin){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-txt">Admin access required.</div></div>`;return;}
   const pending=S.audits.filter(a=>!a.confirmed&&!a.submitted_at&&!a.rejection_reason);
+  const confirmed_audits=S.audits.filter(a=>a.confirmed&&!a.submitted_at);
   const submitted=S.audits.filter(a=>a.submitted_at);
   const pendingRows=pending.map(a=>{
     const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
-    return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:260px">${esc(c?.name||'—')}</td><td>${esc(a.preferred_date||'—')}</td><td>${esc(c?.course_fee||'—')}</td>
+    return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:220px">${esc(c?.name||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td><td>${esc(a.preferred_date||'—')}</td><td>${esc(c?.course_fee||'—')}</td>
       <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-green btn-sm" onclick="adminConfirm('${a.id}','${a.course_id}')">Confirm</button><button class="btn btn-red btn-sm" onclick="openRejectModal('${a.id}','${a.course_id}')">Reject</button></div></td></tr>`;
   }).join('');
   const submittedRows=submitted.map(a=>{
     const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
     const d=new Date(a.submitted_at).toLocaleDateString('en-SG',{day:'numeric',month:'short'});
-    return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:240px">${esc(c?.name||'—')}</td><td>${d}</td><td><span style="font-size:12px;color:var(--text2)">${esc(a.responses?.d1||'—')}</span></td><td><button class="btn btn-red btn-sm" onclick="adminDeleteEvaluation('${a.id}','${a.course_id}')">Delete</button></td></tr>`;
+    return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:200px">${esc(c?.name||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td><td>${d}</td><td><span style="font-size:12px;color:var(--text2)">${esc(a.responses?.d1||'—')}</span></td><td><button class="btn btn-red btn-sm" onclick="adminDeleteEvaluation('${a.id}','${a.course_id}')">Delete</button></td></tr>`;
   }).join('');
   el.innerHTML=`
     <div class="admin-section">
       <div class="admin-section-title">Pending Confirmations (${pending.length})</div>
-      ${pending.length?`<div class="table-wrap"><table><thead><tr><th>Auditor</th><th>Course</th><th>Preferred Date</th><th>Fee</th><th>Action</th></tr></thead><tbody>${pendingRows}</tbody></table></div>`:`<p style="color:var(--text2);font-size:13px">No pending confirmations.</p>`}
+      ${pending.length?`<div class="table-wrap"><table><thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Preferred Date</th><th>Fee</th><th>Action</th></tr></thead><tbody>${pendingRows}</tbody></table></div>`:`<p style="color:var(--text2);font-size:13px">No pending confirmations.</p>`}
     </div>
+    <div class="admin-section">
+      <div class="admin-section-title">Confirmed Courses (${confirmed_audits.length})</div>
+      ${confirmed_audits.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Confirmed Date</th><th>Fee</th><th>Action</th></tr></thead>
+            <tbody>${confirmed_audits.map(a=>{
+              const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
+              return`<tr>
+                <td>${esc(p?.full_name||'—')}</td>
+                <td style="max-width:200px">${esc(c?.name||'—')}</td>
+                <td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td>
+                <td>${esc(a.preferred_date||'—')}</td>
+                <td>${esc(c?.course_fee||'—')}</td>
+                <td><button class="btn btn-red btn-sm" onclick="adminUnconfirm('${a.id}','${a.course_id}')">Unconfirm</button></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>` : `<p style="color:var(--text2);font-size:13px">No confirmed courses yet.</p>`}
+    </div>
+
     <div class="admin-section">
       <div class="admin-section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Submitted Evaluations (${submitted.length})</span>
         ${submitted.length?`<button class="btn btn-secondary btn-sm" onclick="downloadEvaluationsCSV()" style="font-size:12px">⬇ Download CSV</button>`:''}
       </div>
-      ${submitted.length?`<div class="table-wrap"><table><thead><tr><th>Auditor</th><th>Course</th><th>Submitted</th><th>Recommendation</th><th>Action</th></tr></thead><tbody>${submittedRows}</tbody></table></div>`:`<p style="color:var(--text2);font-size:13px">No submitted evaluations yet.</p>`}
+      ${submitted.length?`<div class="table-wrap"><table><thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Submitted</th><th>Recommendation</th><th>Action</th></tr></thead><tbody>${submittedRows}</tbody></table></div>`:`<p style="color:var(--text2);font-size:13px">No submitted evaluations yet.</p>`}
     </div>
     <div class="admin-section">
       <div class="admin-section-title">Add Course</div>
@@ -921,6 +943,20 @@ function renderAdmin(){
         <button class="btn btn-primary" style="width:auto;min-width:140px" onclick="adminAddCourse()">Add Course</button>
       </div>
     </div>`;
+}
+
+async function adminUnconfirm(auditId, courseId) {
+  if (!confirm('Unconfirm this slot? The auditor will need to wait for re-confirmation before accessing their form.')) return;
+  const { error } = await db.from('audits').update({ confirmed: false }).eq('id', auditId);
+  if (error) return toast(error.message, 'error');
+  // Recalculate course status
+  const remaining = S.audits.filter(a => a.course_id === courseId && a.id !== auditId);
+  const newStatus = remaining.some(a => a.submitted_at) ? 'Completed'
+    : remaining.some(a => a.confirmed) ? 'Confirmed'
+    : remaining.some(a => !a.rejection_reason) ? 'Claimed' : 'Unassigned';
+  await db.from('courses').update({ status: newStatus }).eq('id', courseId);
+  toast('Slot unconfirmed.', 'info');
+  await reload();
 }
 
 async function adminConfirm(auditId,courseId){
