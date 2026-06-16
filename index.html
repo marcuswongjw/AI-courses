@@ -885,6 +885,18 @@ function renderProgress(){
     ${auditorStats.length?`<div class="progress-card"><div class="progress-card-title">Auditor Workload</div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Auditor</th><th>Claimed</th><th>Confirmed</th><th>Submitted</th></tr></thead><tbody>${auditorRows}</tbody></table></div></div>`:''}`;
 }
 
+
+function adminProviderOpts(audits, section) {
+  const providers = [...new Set(audits.map(a => S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort();
+  const cur = S.adminFilters[section]?.provider || '';
+  return providers.map(p => `<option value="${esc(p)}" ${cur===p?'selected':''}>${esc(p)}</option>`).join('');
+}
+function adminRecOpts() {
+  const opts = ['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'];
+  const cur = S.adminFilters.submitted.recommendation;
+  return opts.map(r => `<option value="${esc(r)}" ${cur===r?'selected':''}>${esc(r)}</option>`).join('');
+}
+
 function renderAdmin(){
   closeRejectModal();
   const el=qs('#admin-content');
@@ -947,7 +959,7 @@ function renderAdmin(){
             oninput="S.adminFilters.pending.search=this.value;renderAdmin()" style="flex:1;min-width:180px;font-size:13px;padding:6px 10px">
           <select class="filter-select" onchange="S.adminFilters.pending.provider=this.value;renderAdmin()">
             <option value="">All Providers</option>
-            ${[...new Set(pending.map(a=>S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort().map(p=>\`<option value="\${p}" \${S.adminFilters.pending.provider===p?'selected':''}>\${esc(p)}</option>\`).join('')}
+            ${adminProviderOpts(pending,'pending')}
           </select>
           <select class="filter-select" onchange="S.adminSort.pending={col:this.value.split(':')[0],dir:this.value.split(':')[1]};renderAdmin()">
             <option value="auditor:asc">Sort: Auditor A–Z</option>
@@ -987,7 +999,7 @@ function renderAdmin(){
             oninput="S.adminFilters.confirmed.search=this.value;renderAdmin()" style="flex:1;min-width:180px;font-size:13px;padding:6px 10px">
           <select class="filter-select" onchange="S.adminFilters.confirmed.provider=this.value;renderAdmin()">
             <option value="">All Providers</option>
-            ${[...new Set(confirmed_audits.map(a=>S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort().map(p=>\`<option value="\${p}" \${af.provider===p?'selected':''}>\${esc(p)}</option>\`).join('')}
+            \${adminProviderOpts(confirmed_audits,'confirmed')}
           </select>
           <select class="filter-select" onchange="S.adminSort.confirmed={col:this.value.split(':')[0],dir:this.value.split(':')[1]};renderAdmin()">
             <option value="auditor:asc">Sort: Auditor A–Z</option>
@@ -1002,14 +1014,14 @@ function renderAdmin(){
             <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Run Date</th><th>Fee</th><th>Action</th></tr></thead>
             <tbody>${rows.length ? rows.map(a=>{
               const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
-              return\`<tr>
-                <td>\${esc(p?.full_name||'—')}</td>
-                <td style="max-width:200px">\${esc(c?.name||'—')}</td>
-                <td style="font-size:12px;color:var(--text2)">\${esc(c?.training_provider||'—')}</td>
-                <td style="font-size:12px;color:var(--text2)">\${esc(a.preferred_date||'—')}</td>
-                <td>\${esc(c?.course_fee||'—')}</td>
-                <td><button class="btn btn-red btn-sm" onclick="adminUnconfirm('\${a.id}','\${a.course_id}')">Unconfirm</button></td>
-              </tr>\`;
+              return`<tr>
+                <td>${esc(p?.full_name||'—')}</td>
+                <td style="max-width:200px">${esc(c?.name||'—')}</td>
+                <td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td>
+                <td style="font-size:12px;color:var(--text2)">${esc(a.preferred_date||'—')}</td>
+                <td>${esc(c?.course_fee||'—')}</td>
+                <td><button class="btn btn-red btn-sm" onclick="adminUnconfirm('${a.id}','${a.course_id}')">Unconfirm</button></td>
+              </tr>`;
             }).join('') : '<tr><td colspan="6"><div class="empty-state" style="padding:20px"><div class="empty-txt">No results match your filters.</div></div></td></tr>'}
             </tbody>
           </table>
@@ -1029,11 +1041,11 @@ function renderAdmin(){
             oninput="S.adminFilters.submitted.search=this.value;renderAdmin()" style="flex:1;min-width:180px;font-size:13px;padding:6px 10px">
           <select class="filter-select" onchange="S.adminFilters.submitted.provider=this.value;renderAdmin()">
             <option value="">All Providers</option>
-            ${[...new Set(submitted.map(a=>S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort().map(p=>\`<option value="\${p}" \${S.adminFilters.submitted.provider===p?'selected':''}>\${esc(p)}</option>\`).join('')}
+            ${adminProviderOpts(submitted,'submitted')}
           </select>
           <select class="filter-select" onchange="S.adminFilters.submitted.recommendation=this.value;renderAdmin()">
             <option value="">All Recommendations</option>
-            ${['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'].map(r=>\`<option value="\${r}" \${S.adminFilters.submitted.recommendation===r?'selected':''}>\${r}</option>\`).join('')}
+            ${adminRecOpts()}
           </select>
           <select class="filter-select" onchange="S.adminSort.submitted={col:this.value.split(':')[0],dir:this.value.split(':')[1]};renderAdmin()">
             <option value="submitted:desc">Sort: Newest first</option>
