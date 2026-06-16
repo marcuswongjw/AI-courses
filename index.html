@@ -397,7 +397,17 @@ const S = {
   sort:{col:'name',dir:'asc'},
   formEdits:{},saveTimers:{},
   pendingClaim:{courseId:null,date:''},
-  fillOnBehalf:null
+  fillOnBehalf:null,
+  adminFilters:{
+    pending:{search:'',provider:''},
+    confirmed:{search:'',provider:''},
+    submitted:{search:'',provider:'',recommendation:''}
+  },
+  adminSort:{
+    pending:{col:'auditor',dir:'asc'},
+    confirmed:{col:'auditor',dir:'asc'},
+    submitted:{col:'submitted',dir:'desc'}
+  }
 };
 
 async function init() {
@@ -882,40 +892,130 @@ function renderAdmin(){
   const pending=S.audits.filter(a=>!a.confirmed&&!a.submitted_at&&!a.rejection_reason);
   const confirmed_audits=S.audits.filter(a=>a.confirmed&&!a.submitted_at);
   const submitted=S.audits.filter(a=>a.submitted_at);
-  const pendingRows=pending.map(a=>{
-    const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
-    return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:220px">${esc(c?.name||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td><td>${esc(a.preferred_date||'—')}</td><td>${esc(c?.course_fee||'—')}</td>
-      <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-green btn-sm" onclick="adminConfirm('${a.id}','${a.course_id}')">Confirm</button><button class="btn btn-red btn-sm" onclick="openRejectModal('${a.id}','${a.course_id}')">Reject</button></div></td></tr>`;
-  }).join('');
-  const submittedRows=submitted.map(a=>{
-    const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
-    const d=new Date(a.submitted_at).toLocaleDateString('en-SG',{day:'numeric',month:'short'});
-    return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:200px">${esc(c?.name||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td><td>${d}</td><td><span style="font-size:12px;color:var(--text2)">${esc(a.responses?.d1||'—')}</span></td><td><button class="btn btn-red btn-sm" onclick="adminDeleteEvaluation('${a.id}','${a.course_id}')">Delete</button></td></tr>`;
-  }).join('');
+  const pendingRows=(()=>{
+    const af=S.adminFilters.pending, as=S.adminSort.pending;
+    let rows=[...pending];
+    if(af.search) rows=rows.filter(a=>{const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);return(p?.full_name||'').toLowerCase().includes(af.search.toLowerCase())||(c?.name||'').toLowerCase().includes(af.search.toLowerCase());});
+    if(af.provider) rows=rows.filter(a=>{const c=S.courses.find(x=>x.id===a.course_id);return c?.training_provider===af.provider;});
+    const mult=as.dir==='asc'?1:-1;
+    rows.sort((a,b)=>{
+      const ca=S.courses.find(x=>x.id===a.course_id),cb=S.courses.find(x=>x.id===b.course_id);
+      const pa=profile(a.user_id),pb=profile(b.user_id);
+      if(as.col==='auditor') return(pa?.full_name||'').localeCompare(pb?.full_name||'')*mult;
+      if(as.col==='course') return(ca?.name||'').localeCompare(cb?.name||'')*mult;
+      if(as.col==='provider') return(ca?.training_provider||'').localeCompare(cb?.training_provider||'')*mult;
+      if(as.col==='date') return(a.preferred_date||'').localeCompare(b.preferred_date||'')*mult;
+      if(as.col==='fee') return(ca?.course_fee||'').localeCompare(cb?.course_fee||'')*mult;
+      return 0;
+    });
+    return {html:rows.map(a=>{
+      const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
+      return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:200px">${esc(c?.name||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td><td>${esc(a.preferred_date||'—')}</td><td>${esc(c?.course_fee||'—')}</td>
+        <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-green btn-sm" onclick="adminConfirm('${a.id}','${a.course_id}')">Confirm</button><button class="btn btn-red btn-sm" onclick="openRejectModal('${a.id}','${a.course_id}')">Reject</button></div></td></tr>`;
+    }).join(''), count:rows.length};
+  })();
+  const submittedRows=(()=>{
+    const af=S.adminFilters.submitted, as=S.adminSort.submitted;
+    let rows=[...submitted];
+    if(af.search) rows=rows.filter(a=>{const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);return(p?.full_name||'').toLowerCase().includes(af.search.toLowerCase())||(c?.name||'').toLowerCase().includes(af.search.toLowerCase());});
+    if(af.provider) rows=rows.filter(a=>{const c=S.courses.find(x=>x.id===a.course_id);return c?.training_provider===af.provider;});
+    if(af.recommendation) rows=rows.filter(a=>a.responses?.d1===af.recommendation);
+    const mult=as.dir==='asc'?1:-1;
+    rows.sort((a,b)=>{
+      const ca=S.courses.find(x=>x.id===a.course_id),cb=S.courses.find(x=>x.id===b.course_id);
+      const pa=profile(a.user_id),pb=profile(b.user_id);
+      if(as.col==='auditor') return(pa?.full_name||'').localeCompare(pb?.full_name||'')*mult;
+      if(as.col==='course') return(ca?.name||'').localeCompare(cb?.name||'')*mult;
+      if(as.col==='provider') return(ca?.training_provider||'').localeCompare(cb?.training_provider||'')*mult;
+      if(as.col==='date') return(a.preferred_date||'').localeCompare(b.preferred_date||'')*mult;
+      if(as.col==='submitted') return(a.submitted_at||'').localeCompare(b.submitted_at||'')*mult;
+      if(as.col==='recommendation') return(a.responses?.d1||'').localeCompare(b.responses?.d1||'')*mult;
+      return 0;
+    });
+    return {html:rows.map(a=>{
+      const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
+      const d=new Date(a.submitted_at).toLocaleDateString('en-SG',{day:'numeric',month:'short'});
+      return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:170px">${esc(c?.name||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(a.preferred_date||'—')}</td><td>${d}</td><td><span style="font-size:12px;color:var(--text2)">${esc(a.responses?.d1||'—')}</span></td><td><button class="btn btn-red btn-sm" onclick="adminDeleteEvaluation('${a.id}','${a.course_id}')">Delete</button></td></tr>`;
+    }).join(''), count:rows.length};
+  })();
   el.innerHTML=`
     <div class="admin-section">
       <div class="admin-section-title">Pending Confirmations (${pending.length})</div>
-      ${pending.length?`<div class="table-wrap"><table><thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Preferred Date</th><th>Fee</th><th>Action</th></tr></thead><tbody>${pendingRows}</tbody></table></div>`:`<p style="color:var(--text2);font-size:13px">No pending confirmations.</p>`}
+      ${pending.length ? `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input class="filter-search" type="text" placeholder="Search auditor or course…" value="${esc(S.adminFilters.pending.search)}"
+            oninput="S.adminFilters.pending.search=this.value;renderAdmin()" style="flex:1;min-width:180px;font-size:13px;padding:6px 10px">
+          <select class="filter-select" onchange="S.adminFilters.pending.provider=this.value;renderAdmin()">
+            <option value="">All Providers</option>
+            ${[...new Set(pending.map(a=>S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort().map(p=>\`<option value="\${p}" \${S.adminFilters.pending.provider===p?'selected':''}>\${esc(p)}</option>\`).join('')}
+          </select>
+          <select class="filter-select" onchange="S.adminSort.pending={col:this.value.split(':')[0],dir:this.value.split(':')[1]};renderAdmin()">
+            <option value="auditor:asc">Sort: Auditor A–Z</option>
+            <option value="auditor:desc">Sort: Auditor Z–A</option>
+            <option value="course:asc">Sort: Course A–Z</option>
+            <option value="provider:asc">Sort: Provider A–Z</option>
+            <option value="date:asc">Sort: Date A–Z</option>
+            <option value="fee:asc">Sort: Fee A–Z</option>
+          </select>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Preferred Date</th><th>Fee</th><th>Action</th></tr></thead>
+          <tbody>${pendingRows.html || '<tr><td colspan="6"><div class="empty-state" style="padding:20px"><div class="empty-txt">No results match filters.</div></div></td></tr>'}</tbody>
+        </table></div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">${pendingRows.count} of ${pending.length} shown</div>
+      ` : `<p style="color:var(--text2);font-size:13px">No pending confirmations.</p>`}
     </div>
     <div class="admin-section">
       <div class="admin-section-title">Confirmed Courses (${confirmed_audits.length})</div>
-      ${confirmed_audits.length ? `
+      ${confirmed_audits.length ? (() => {
+        const af=S.adminFilters.confirmed, as_=S.adminSort.confirmed;
+        let rows=[...confirmed_audits];
+        if(af.search) rows=rows.filter(a=>{const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);return(p?.full_name||'').toLowerCase().includes(af.search.toLowerCase())||(c?.name||'').toLowerCase().includes(af.search.toLowerCase());});
+        if(af.provider) rows=rows.filter(a=>{const c=S.courses.find(x=>x.id===a.course_id);return c?.training_provider===af.provider;});
+        const mult=as_.dir==='asc'?1:-1;
+        rows.sort((a,b)=>{
+          const ca=S.courses.find(x=>x.id===a.course_id),cb=S.courses.find(x=>x.id===b.course_id);
+          const pa=profile(a.user_id),pb=profile(b.user_id);
+          if(as_.col==='auditor') return(pa?.full_name||'').localeCompare(pb?.full_name||'')*mult;
+          if(as_.col==='course') return(ca?.name||'').localeCompare(cb?.name||'')*mult;
+          if(as_.col==='provider') return(ca?.training_provider||'').localeCompare(cb?.training_provider||'')*mult;
+          if(as_.col==='date') return(a.preferred_date||'').localeCompare(b.preferred_date||'')*mult;
+          return 0;
+        });
+        return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input class="filter-search" type="text" placeholder="Search auditor or course…" value="${esc(af.search)}"
+            oninput="S.adminFilters.confirmed.search=this.value;renderAdmin()" style="flex:1;min-width:180px;font-size:13px;padding:6px 10px">
+          <select class="filter-select" onchange="S.adminFilters.confirmed.provider=this.value;renderAdmin()">
+            <option value="">All Providers</option>
+            ${[...new Set(confirmed_audits.map(a=>S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort().map(p=>\`<option value="\${p}" \${af.provider===p?'selected':''}>\${esc(p)}</option>\`).join('')}
+          </select>
+          <select class="filter-select" onchange="S.adminSort.confirmed={col:this.value.split(':')[0],dir:this.value.split(':')[1]};renderAdmin()">
+            <option value="auditor:asc">Sort: Auditor A–Z</option>
+            <option value="auditor:desc">Sort: Auditor Z–A</option>
+            <option value="course:asc">Sort: Course A–Z</option>
+            <option value="provider:asc">Sort: Provider A–Z</option>
+            <option value="date:asc">Sort: Date A–Z</option>
+          </select>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Confirmed Date</th><th>Fee</th><th>Action</th></tr></thead>
-            <tbody>${confirmed_audits.map(a=>{
+            <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Run Date</th><th>Fee</th><th>Action</th></tr></thead>
+            <tbody>${rows.length ? rows.map(a=>{
               const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
-              return`<tr>
-                <td>${esc(p?.full_name||'—')}</td>
-                <td style="max-width:200px">${esc(c?.name||'—')}</td>
-                <td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td>
-                <td>${esc(a.preferred_date||'—')}</td>
-                <td>${esc(c?.course_fee||'—')}</td>
-                <td><button class="btn btn-red btn-sm" onclick="adminUnconfirm('${a.id}','${a.course_id}')">Unconfirm</button></td>
-              </tr>`;
-            }).join('')}</tbody>
+              return\`<tr>
+                <td>\${esc(p?.full_name||'—')}</td>
+                <td style="max-width:200px">\${esc(c?.name||'—')}</td>
+                <td style="font-size:12px;color:var(--text2)">\${esc(c?.training_provider||'—')}</td>
+                <td style="font-size:12px;color:var(--text2)">\${esc(a.preferred_date||'—')}</td>
+                <td>\${esc(c?.course_fee||'—')}</td>
+                <td><button class="btn btn-red btn-sm" onclick="adminUnconfirm('\${a.id}','\${a.course_id}')">Unconfirm</button></td>
+              </tr>\`;
+            }).join('') : '<tr><td colspan="6"><div class="empty-state" style="padding:20px"><div class="empty-txt">No results match your filters.</div></div></td></tr>'}
+            </tbody>
           </table>
-        </div>` : `<p style="color:var(--text2);font-size:13px">No confirmed courses yet.</p>`}
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">\${rows.length} of \${confirmed_audits.length} shown</div>`;
+      })() : `<p style="color:var(--text2);font-size:13px">No confirmed courses yet.</p>`}
     </div>
 
     <div class="admin-section">
@@ -923,7 +1023,33 @@ function renderAdmin(){
         <span>Submitted Evaluations (${submitted.length})</span>
         ${submitted.length?`<button class="btn btn-secondary btn-sm" onclick="downloadEvaluationsCSV()" style="font-size:12px">⬇ Download CSV</button>`:''}
       </div>
-      ${submitted.length?`<div class="table-wrap"><table><thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Submitted</th><th>Recommendation</th><th>Action</th></tr></thead><tbody>${submittedRows}</tbody></table></div>`:`<p style="color:var(--text2);font-size:13px">No submitted evaluations yet.</p>`}
+      ${submitted.length ? `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input class="filter-search" type="text" placeholder="Search auditor or course…" value="${esc(S.adminFilters.submitted.search)}"
+            oninput="S.adminFilters.submitted.search=this.value;renderAdmin()" style="flex:1;min-width:180px;font-size:13px;padding:6px 10px">
+          <select class="filter-select" onchange="S.adminFilters.submitted.provider=this.value;renderAdmin()">
+            <option value="">All Providers</option>
+            ${[...new Set(submitted.map(a=>S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort().map(p=>\`<option value="\${p}" \${S.adminFilters.submitted.provider===p?'selected':''}>\${esc(p)}</option>\`).join('')}
+          </select>
+          <select class="filter-select" onchange="S.adminFilters.submitted.recommendation=this.value;renderAdmin()">
+            <option value="">All Recommendations</option>
+            ${['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'].map(r=>\`<option value="\${r}" \${S.adminFilters.submitted.recommendation===r?'selected':''}>\${r}</option>\`).join('')}
+          </select>
+          <select class="filter-select" onchange="S.adminSort.submitted={col:this.value.split(':')[0],dir:this.value.split(':')[1]};renderAdmin()">
+            <option value="submitted:desc">Sort: Newest first</option>
+            <option value="submitted:asc">Sort: Oldest first</option>
+            <option value="auditor:asc">Sort: Auditor A–Z</option>
+            <option value="course:asc">Sort: Course A–Z</option>
+            <option value="provider:asc">Sort: Provider A–Z</option>
+            <option value="recommendation:asc">Sort: Recommendation A–Z</option>
+          </select>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Run Date</th><th>Submitted</th><th>Recommendation</th><th>Action</th></tr></thead>
+          <tbody>${submittedRows.html || '<tr><td colspan="7"><div class="empty-state" style="padding:20px"><div class="empty-txt">No results match filters.</div></div></td></tr>'}</tbody>
+        </table></div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">${submittedRows.count} of ${submitted.length} shown</div>
+      ` : `<p style="color:var(--text2);font-size:13px">No submitted evaluations yet.</p>`}
     </div>
     <div class="admin-section">
       <div class="admin-section-title">Add Course</div>
