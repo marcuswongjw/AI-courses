@@ -601,7 +601,7 @@ function renderCourses() {
       <td>${statusBadge}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         ${action}
-        ${isAdmin?`<button class="btn btn-secondary btn-sm" style="font-size:12px;padding:5px 10px" title="Edit" onclick="openEditCourseModal('${c.id}')">✏️</button>`:''}
+        ${isAdmin?`<button class="btn btn-secondary btn-sm" style="font-size:12px;padding:5px 10px" title="Edit" onclick="openEditCourseModal('${c.id}')">✏️</button><button class="btn btn-red btn-sm" style="font-size:12px;padding:5px 10px" title="Delete course" onclick="adminDeleteCourse('${c.id}')">🗑</button>`:''}
       </td>
     </tr>`;
   }).join('');
@@ -885,6 +885,40 @@ function renderProgress(){
     ${auditorStats.length?`<div class="progress-card"><div class="progress-card-title">Auditor Workload</div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Auditor</th><th>Claimed</th><th>Confirmed</th><th>Submitted</th></tr></thead><tbody>${auditorRows}</tbody></table></div></div>`:''}`;
 }
 
+
+
+// ─────────────────────────────────────────────────────────
+//  ADMIN DELETE COURSE
+// ─────────────────────────────────────────────────────────
+async function adminDeleteCourse(courseId) {
+  const course = S.courses.find(c => c.id === courseId);
+  const courseAudits = S.audits.filter(a => a.course_id === courseId);
+  const hasAudits = courseAudits.length > 0;
+  const hasSubmitted = courseAudits.some(a => a.submitted_at);
+
+  let warn = '';
+  if (hasSubmitted) warn = `
+
+⚠ This course has ${courseAudits.length} audit(s) including submitted evaluations — all will be permanently deleted.`;
+  else if (hasAudits) warn = `
+
+⚠ This course has ${courseAudits.length} active claim(s) — those will also be deleted.`;
+
+  if (!confirm(`Delete "${course?.name}"?${warn}
+
+This cannot be undone.`)) return;
+
+  if (hasAudits) {
+    const { error: ae } = await db.from('audits').delete().eq('course_id', courseId);
+    if (ae) return toast('Failed to delete linked audits: ' + ae.message, 'error');
+  }
+
+  const { error } = await db.from('courses').delete().eq('id', courseId);
+  if (error) return toast(error.message, 'error');
+
+  toast(`"${course?.name}" deleted.`, 'info');
+  await reload();
+}
 
 function adminProviderOpts(audits, section) {
   const providers = [...new Set(audits.map(a => S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort();
