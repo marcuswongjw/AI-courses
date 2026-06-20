@@ -906,7 +906,7 @@ function openAssignModal(courseId) {
     .filter(p => !p.is_admin) // optional: show all users
     .sort((a,b) => (a.full_name||'').localeCompare(b.full_name||''))
     .forEach(p => {
-      const alreadyClaimed = S.audits.some(a => a.course_id === courseId && a.user_id === p.id);
+      const alreadyClaimed = S.audits.some(a => a.course_id === courseId && a.user_id === p.id && !a.rejection_reason);
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.full_name + (alreadyClaimed ? ' (already assigned)' : '');
@@ -1151,7 +1151,7 @@ function renderAdmin(){
             </tbody>
           </table>
         </div>
-        <div style="font-size:12px;color:var(--text3);margin-top:6px">\${rows.length} of \${confirmed_audits.length} shown</div>`;
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">${rows.length} of ${confirmed_audits.length} shown</div>`;
       })() : `<p style="color:var(--text2);font-size:13px">No confirmed courses yet.</p>`}
     </div>
 
