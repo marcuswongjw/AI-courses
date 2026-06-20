@@ -949,26 +949,40 @@ async function confirmAssign() {
   const userId = qs('#assign-auditor').value;
   if (!userId) return toast('Please select an auditor.', 'error');
 
-  // Get selected date: radio first, then custom input
   const radioDate = document.querySelector('input[name="assign-date"]:checked')?.value || '';
   const customDate = qs('#assign-date-custom').value.trim();
   const date = customDate || radioDate || 'TBC';
 
   const confirmNow = document.querySelector('input[name="assign-confirm"]:checked')?.value === 'true';
 
-  const { error } = await db.from('audits').insert({
-    course_id: courseId,
-    user_id: userId,
-    preferred_date: date,
-    confirmed: confirmNow,
-    responses: {}
-  });
+  // Check if auditor already has a row (e.g. a rejected claim) — upsert instead of insert
+  const existing = S.audits.find(a => a.course_id === courseId && a.user_id === userId);
+
+  let error;
+  if (existing) {
+    // Reactivate the existing row — clear rejection, update date and confirmation
+    ({ error } = await db.from('audits').update({
+      preferred_date: date,
+      confirmed: confirmNow,
+      rejection_reason: null,
+      submitted_at: null,
+      responses: {}
+    }).eq('id', existing.id));
+  } else {
+    ({ error } = await db.from('audits').insert({
+      course_id: courseId,
+      user_id: userId,
+      preferred_date: date,
+      confirmed: confirmNow,
+      responses: {}
+    }));
+  }
   if (error) return toast(error.message, 'error');
 
   // Update course status
   const course = S.courses.find(c => c.id === courseId);
   const newStatus = confirmNow ? 'Confirmed' : 'Claimed';
-  if (!course?.status || course.status === 'Unassigned') {
+  if (!course?.status || course.status === 'Unassigned' || course.status === 'Claimed') {
     await db.from('courses').update({ status: newStatus }).eq('id', courseId);
   }
 
