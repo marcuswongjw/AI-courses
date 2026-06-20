@@ -601,7 +601,7 @@ function renderCourses() {
       <td>${statusBadge}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         ${action}
-        ${isAdmin?`<button class="btn btn-secondary btn-sm" style="font-size:12px;padding:5px 10px" title="Edit" onclick="openEditCourseModal('${c.id}')">✏️</button><button class="btn btn-red btn-sm" style="font-size:12px;padding:5px 10px" title="Delete course" onclick="adminDeleteCourse('${c.id}')">🗑</button>`:''}
+        ${isAdmin?`<button class="btn btn-secondary btn-sm" style="font-size:12px;padding:5px 10px" title="Edit" onclick="openEditCourseModal('${c.id}')">✏️</button><button class="btn btn-secondary btn-sm" style="font-size:12px;padding:5px 10px;color:var(--accent)" title="Assign auditor" onclick="openAssignModal('${c.id}')">👤+</button><button class="btn btn-red btn-sm" style="font-size:12px;padding:5px 10px" title="Delete course" onclick="adminDeleteCourse('${c.id}')">🗑</button>`:''}
       </td>
     </tr>`;
   }).join('');
@@ -886,6 +886,97 @@ function renderProgress(){
 }
 
 
+
+// ─────────────────────────────────────────────────────────
+//  ADMIN ASSIGN AUDITOR
+// ─────────────────────────────────────────────────────────
+let _assignCourseId = null;
+
+function openAssignModal(courseId) {
+  const course = S.courses.find(c => c.id === courseId);
+  if (!course) return;
+  _assignCourseId = courseId;
+
+  qs('#assign-course-name').textContent = course.name;
+
+  // Populate auditor dropdown
+  const auditorSel = qs('#assign-auditor');
+  auditorSel.innerHTML = '<option value="">— Select auditor —</option>';
+  S.profiles
+    .filter(p => !p.is_admin) // optional: show all users
+    .sort((a,b) => (a.full_name||'').localeCompare(b.full_name||''))
+    .forEach(p => {
+      const alreadyClaimed = S.audits.some(a => a.course_id === courseId && a.user_id === p.id);
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.full_name + (alreadyClaimed ? ' (already assigned)' : '');
+      opt.disabled = alreadyClaimed;
+      auditorSel.appendChild(opt);
+    });
+
+  // Populate run date options
+  const dates = parseRunDates(course.next_run);
+  const dateContainer = qs('#assign-date-options');
+  if (dates.length && dates[0] !== 'TBC – Date to be confirmed') {
+    dateContainer.style.display = '';
+    dateContainer.innerHTML = dates.map((d, i) => `
+      <label class="radio-option" id="aro-${i}" style="margin-bottom:4px">
+        <input type="radio" name="assign-date" value="${esc(d)}"
+          onchange="qs('#assign-date-custom').value='';
+            document.querySelectorAll('[id^=aro-]').forEach(e=>e.classList.remove('selected'));
+            document.getElementById('aro-${i}').classList.add('selected')">
+        <span class="radio-label">${esc(d)}</span>
+      </label>`).join('');
+  } else {
+    dateContainer.style.display = 'none';
+    dateContainer.innerHTML = '';
+  }
+
+  qs('#assign-date-custom').value = '';
+  // Default to "confirm immediately"
+  document.querySelector('input[name="assign-confirm"][value="true"]').checked = true;
+
+  qs('#assign-modal').classList.add('open');
+}
+
+function closeAssignModal() {
+  qs('#assign-modal').classList.remove('open');
+  _assignCourseId = null;
+}
+
+async function confirmAssign() {
+  const courseId = _assignCourseId;
+  const userId = qs('#assign-auditor').value;
+  if (!userId) return toast('Please select an auditor.', 'error');
+
+  // Get selected date: radio first, then custom input
+  const radioDate = document.querySelector('input[name="assign-date"]:checked')?.value || '';
+  const customDate = qs('#assign-date-custom').value.trim();
+  const date = customDate || radioDate || 'TBC';
+
+  const confirmNow = document.querySelector('input[name="assign-confirm"]:checked')?.value === 'true';
+
+  const { error } = await db.from('audits').insert({
+    course_id: courseId,
+    user_id: userId,
+    preferred_date: date,
+    confirmed: confirmNow,
+    responses: {}
+  });
+  if (error) return toast(error.message, 'error');
+
+  // Update course status
+  const course = S.courses.find(c => c.id === courseId);
+  const newStatus = confirmNow ? 'Confirmed' : 'Claimed';
+  if (!course?.status || course.status === 'Unassigned') {
+    await db.from('courses').update({ status: newStatus }).eq('id', courseId);
+  }
+
+  closeAssignModal();
+  const auditor = S.profiles.find(p => p.id === userId)?.full_name || 'Auditor';
+  toast(`${auditor} assigned${confirmNow ? ' and confirmed' : ' (pending confirmation)'}.`, 'success');
+  await reload();
+}
 
 // ─────────────────────────────────────────────────────────
 //  ADMIN DELETE COURSE
@@ -1309,9 +1400,51 @@ document.addEventListener('click',e=>{
   if(e.target.id==='edit-course-modal')closeEditCourseModal();
   if(e.target.id==='auditor-modal')closeAuditorModal();
   if(e.target.id==='course-detail-modal')qs('#course-detail-modal').classList.remove('open');
+  if(e.target.id==='assign-modal')closeAssignModal();
 });
 
 init();
 </script>
+
+<!-- Assign Auditor Modal -->
+<div class="modal-overlay" id="assign-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-head">
+      <div class="modal-title">Assign Auditor</div>
+      <button class="modal-x" onclick="closeAssignModal()">×</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div id="assign-course-name" style="font-weight:500;font-size:14px;color:var(--text);padding:10px 13px;background:var(--bg3);border:1px solid var(--border);border-radius:8px"></div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Auditor</label>
+        <select class="form-input" id="assign-auditor">
+          <option value="">— Select auditor —</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Run Date</label>
+        <div id="assign-date-options" class="radio-group"></div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">Or enter a custom date:</div>
+        <input class="form-input" id="assign-date-custom" type="text" placeholder="e.g. 15 Jul" style="margin-top:6px">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Confirm slot immediately?</label>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+            <input type="radio" name="assign-confirm" value="true" checked style="accent-color:var(--accent)"> Yes — confirm slot now
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+            <input type="radio" name="assign-confirm" value="false" style="accent-color:var(--accent)"> No — pending confirmation
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAssignModal()">Cancel</button>
+      <button class="btn btn-primary" style="width:auto" onclick="confirmAssign()">Assign Auditor</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
