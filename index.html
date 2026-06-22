@@ -415,7 +415,7 @@ async function init() {
   if(session){S.user=session.user;await loadAll();showApp();}
   else showAuthScreen();
   db.auth.onAuthStateChange(async(event,session)=>{
-    if(event==='SIGNED_IN'&&session){S.user=session.user;await loadAll();showApp();}
+    if(event==='SIGNED_IN'&&session){const isRefresh=S.user!=null;S.user=session.user;await loadAll();showApp(!isRefresh);}
     else if(event==='SIGNED_OUT'){S.user=null;S.profile=null;showAuthScreen();}
   });
 }
@@ -1377,12 +1377,12 @@ function renderNotifications(){
 }
 
 function showAuthScreen(){qs('#auth-screen').classList.remove('hidden');qs('#app').classList.add('hidden');}
-function showApp(){
+function showApp(resetTab=true){
   qs('#auth-screen').classList.add('hidden');qs('#app').classList.remove('hidden');
   qs('#hdr-user').textContent=S.profile?.full_name||S.user?.email||'User';
   qs('#hdr-admin').style.display=S.profile?.is_admin?'':'none';
   qs('#admin-nav-tab').style.display=S.profile?.is_admin?'':'none';
-  S.tab='courses';qsa('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='courses'));
+  if(resetTab){S.tab='courses';qsa('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='courses'));}
   renderNotifications();render();
 }
 
