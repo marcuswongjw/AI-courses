@@ -130,10 +130,11 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
 .eval-ta{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:var(--sans);font-size:15px;resize:vertical;min-height:90px;outline:none;transition:border-color .2s}
 .eval-ta:focus{border-color:var(--accent)}
 .eval-ta:disabled{opacity:.6;cursor:not-allowed}
-.eval-form-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:4px 0}
-.autosave{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--text3)}
-.as-dot{width:6px;height:6px;border-radius:50%;background:var(--green);transition:background .2s}
+.eval-form-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 0 4px}
+.autosave{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px}
+.as-dot{width:8px;height:8px;border-radius:50%;background:var(--green);transition:background .2s;flex-shrink:0}
 .as-dot.saving{background:var(--amber);animation:pulse 1s infinite}
+.as-dot.error{background:var(--red)}
 .locked-state{text-align:center;padding:40px 20px}
 .locked-icon{font-size:38px;margin-bottom:12px}
 .locked-title{font-family:var(--head);font-size:16px;font-weight:700;color:var(--text);margin-bottom:7px}
@@ -899,8 +900,17 @@ async function doAutosave(auditId){
 }
 function setSaveStatus(auditId,st){
   const dot=qs('#as-dot-'+auditId),txt=qs('#as-txt-'+auditId);if(!dot||!txt)return;
-  if(st==='saving'){dot.classList.add('saving');txt.textContent='Saving…';}
-  else{dot.classList.remove('saving');txt.textContent=st==='error'?'⚠ Save failed':'All changes saved';}
+  dot.classList.remove('saving','error');
+  if(st==='saving'){
+    dot.classList.add('saving');
+    txt.textContent='Saving…';
+  } else if(st==='error'){
+    dot.classList.add('error');
+    txt.textContent='⚠ Save failed — check connection';
+  } else {
+    const now=new Date().toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit'});
+    txt.textContent='Saved at '+now;
+  }
 }
 async function auditorEditEvaluation(auditId){
   if(!confirm('Reopen this evaluation for editing?'))return;
@@ -1608,6 +1618,39 @@ document.addEventListener('click',e=>{
   if(e.target.id==='course-detail-modal')qs('#course-detail-modal').classList.remove('open');
   if(e.target.id==='assign-modal')closeAssignModal();
   if(e.target.id==='eval-view-modal')closeEvalViewModal();
+});
+
+// Heartbeat autosave every 30 seconds for any in-progress forms
+setInterval(() => {
+  Object.keys(S.formEdits).forEach(auditId => {
+    if (!S.saveTimers[auditId]) doAutosave(auditId);
+  });
+}, 30000);
+
+// Save any pending edits when user switches tabs or minimizes browser
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    Object.keys(S.saveTimers).forEach(auditId => {
+      clearTimeout(S.saveTimers[auditId]);
+      delete S.saveTimers[auditId];
+      doAutosave(auditId);
+    });
+  }
+});
+
+// Save on page unload
+window.addEventListener('beforeunload', () => {
+  Object.keys(S.formEdits).forEach(auditId => {
+    const audit = S.audits.find(a => a.id === auditId);
+    if (!audit || audit.submitted_at) return;
+    const merged = {...(audit.responses||{}), ...(S.formEdits[auditId]||{})};
+    // Use sendBeacon for reliable save on page close
+    navigator.sendBeacon &&
+      navigator.sendBeacon(
+        `${SUPABASE_URL}/rest/v1/audits?id=eq.${auditId}`,
+        new Blob([JSON.stringify({responses: merged})], {type:'application/json'})
+      );
+  });
 });
 
 init();
