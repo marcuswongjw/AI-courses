@@ -774,8 +774,8 @@ function renderMyAudits(){
     const archetype=course.archetype?`<span style="font-size:12px;color:var(--text2)">· ${esc(course.archetype)}</span>`:'';
     const runDate=audit.preferred_date?`<span style="font-size:12px;color:var(--text2)">📅 ${esc(audit.preferred_date)}</span>`:'';
 
-    // Determine if form body should be shown — default expanded only if ready to evaluate
-    const defaultOpen = isConfirmed || isRejected;
+    // All cards collapsed by default — user clicks to expand
+    const defaultOpen = false;
 
     return`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px" id="${cardId}-wrap">
       <!-- Clickable header to toggle form -->
