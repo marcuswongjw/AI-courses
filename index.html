@@ -762,35 +762,39 @@ function renderMyAudits(){
     const isRejected=!!audit.rejection_reason;
 
     let statusPill,statusColor;
-    if(isSubmitted){statusPill='Submitted';statusColor='var(--accent)';}
-    else if(isConfirmed){statusPill='Ready to evaluate';statusColor='var(--green)';}
-    else if(isPending){statusPill='Awaiting confirmation';statusColor='var(--amber)';}
-    else{statusPill='Rejected';statusColor='var(--red)';}
+    if(isSubmitted){statusPill='✓ Submitted';statusColor='var(--accent)';}
+    else if(isConfirmed){statusPill='✍️ Ready to evaluate';statusColor='var(--green)';}
+    else if(isPending){statusPill='⏳ Awaiting confirmation';statusColor='var(--amber)';}
+    else{statusPill='❌ Rejected';statusColor='var(--red)';}
 
+    const cardId='card-'+audit.id;
     const tgs=course.tgs_number?`<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">${esc(course.tgs_number)}</span>`:'';
     const provider=course.training_provider?`<span style="font-size:12px;color:var(--text2)">${esc(course.training_provider)}</span>`:'';
+    const archetype=course.archetype?`<span style="font-size:12px;color:var(--text2)">· ${esc(course.archetype)}</span>`:'';
     const runDate=audit.preferred_date?`<span style="font-size:12px;color:var(--text2)">📅 ${esc(audit.preferred_date)}</span>`:'';
-    const fee=course.course_fee&&course.course_fee!=='—'?`<span style="font-size:12px;color:var(--text2)">💰 ${esc(course.course_fee)}</span>`:'';
 
-    return`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px">
-      <!-- Card header -->
-      <div style="padding:16px 20px;background:var(--bg3);border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;min-width:0">
-            <div style="font-family:var(--head);font-size:17px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:8px">${esc(course.name)}</div>
-            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
-              ${tgs}${provider}${runDate}${fee}
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-            <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600;background:${statusColor}18;color:${statusColor};border:1px solid ${statusColor}40">
-              ${statusPill}
-            </span>
+    // Determine if form body should be shown — default expanded only if ready to evaluate
+    const defaultOpen = isConfirmed || isRejected;
+
+    return`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px" id="${cardId}-wrap">
+      <!-- Clickable header to toggle form -->
+      <div style="padding:16px 20px;background:var(--bg3);cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"
+        onclick="toggleAuditCard('${cardId}')">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--head);font-size:16px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:8px">${esc(course.name)}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            ${tgs}${provider}${archetype}${runDate}
           </div>
         </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600;background:${statusColor}18;color:${statusColor};border:1px solid ${statusColor}40">
+            ${statusPill}
+          </span>
+          <span id="${cardId}-chevron" style="color:var(--text3);font-size:14px;transition:transform .2s;transform:${defaultOpen?'rotate(180deg)':'rotate(0deg)'}"">▼</span>
+        </div>
       </div>
-      <!-- Card body -->
-      <div style="padding:20px">${buildFormHtml(audit,course)}</div>
+      <!-- Collapsible body -->
+      <div id="${cardId}" style="display:${defaultOpen?'block':'none'};padding:20px">${buildFormHtml(audit,course)}</div>
     </div>`;
   };
 
@@ -809,6 +813,15 @@ function renderMyAudits(){
 
   el.innerHTML=statCards+groupHtml;
 }
+function toggleAuditCard(cardId) {
+  const body = qs('#'+cardId);
+  const chevron = qs('#'+cardId+'-chevron');
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
 function buildFormHtml(audit,course){
   if(audit.submitted_at)return buildSubmittedHtml(audit);
   if(audit.rejection_reason)return`<div class="locked-state"><div class="locked-icon">❌</div><div class="locked-title">Claim Rejected</div><div class="locked-sub">An admin has rejected this claim.</div><div style="margin-top:14px;background:rgba(240,79,79,.07);border:1px solid rgba(240,79,79,.2);border-radius:8px;padding:12px 16px;max-width:420px;margin-left:auto;margin-right:auto;text-align:left"><div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">Reason</div><div style="font-size:14px;color:var(--text)">${esc(audit.rejection_reason)}</div></div></div>`;
@@ -908,6 +921,26 @@ async function auditorDeleteEvaluation(auditId,courseId){
   toast('Evaluation deleted.','info');await reload();
 }
 async function submitAudit(auditId,courseId){
+  // Validate all required fields
+  const auditForValidation=S.audits.find(a=>a.id===auditId);
+  const r={...(auditForValidation?.responses||{}),...(S.formEdits[auditId]||{})};
+  const required=[
+    {key:'a1',label:'A1 — Industry Alignment rating'},
+    {key:'a2',label:'A2 — Key industry trends or gaps'},
+    {key:'b1',label:'B1 — Difficulty level rating'},
+    {key:'b2',label:'B2 — Differentiation rating'},
+    {key:'b3',label:'B3 — Evidence and observations'},
+    {key:'c1',label:'C1 — Skills gap coverage rating'},
+    {key:'c2_tools',label:'C2 — AI tools and platforms covered'},
+    {key:'c3',label:'C3 — Currency of tools rating'},
+    {key:'c4',label:'C4 — Remaining skills gaps'},
+    {key:'d1',label:'D1 — Overall recommendation'},
+  ];
+  const missing=required.filter(f=>!r[f.key]||!String(r[f.key]).trim());
+  if(missing.length){
+    alert('Please complete all fields before submitting:\n\n'+missing.map(f=>'• '+f.label).join('\n'));
+    return;
+  }
   if(!confirm('Submit this evaluation? The form will be locked after submission.'))return;
   if(S.saveTimers[auditId]){clearTimeout(S.saveTimers[auditId]);delete S.saveTimers[auditId];}
   const audit=S.audits.find(a=>a.id===auditId);
@@ -1499,6 +1532,11 @@ function openAuditorModal(userId){
 function closeAuditorModal(){qs('#auditor-modal').classList.remove('open');}
 function openFillOnBehalf(auditId,userId){const audit=S.audits.find(a=>a.id===auditId),course=S.courses.find(c=>c.id===audit?.course_id);if(!audit||!course)return;closeAuditorModal();S.fillOnBehalf={auditId,userId};switchTab('myaudits');}
 async function submitOnBehalf(auditId,courseId){
+  const audit_obo=S.audits.find(a=>a.id===auditId);
+  const r_obo={...(audit_obo?.responses||{}),...(S.formEdits[auditId]||{})};
+  const required_obo=['a1','a2','b1','b2','b3','c1','c2_tools','c3','c4','d1'];
+  const missing_obo=required_obo.filter(k=>!r_obo[k]||!String(r_obo[k]).trim());
+  if(missing_obo.length){alert('Please complete all fields before submitting ('+missing_obo.length+' missing).');return;}
   if(!confirm('Submit this evaluation on behalf of the auditor?'))return;
   if(S.saveTimers[auditId]){clearTimeout(S.saveTimers[auditId]);delete S.saveTimers[auditId];}
   const audit=S.audits.find(a=>a.id===auditId);
