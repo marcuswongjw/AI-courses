@@ -991,9 +991,13 @@ function renderProgress(){
   const total=S.courses.length;
   const completed=S.courses.filter(c=>c.status==='Completed').length;
   const claimed=S.courses.filter(c=>['Claimed','Confirmed','Completed'].includes(c.status)).length;
-  const submitted=S.audits.filter(a=>a.submitted_at).length;
-  const confirmed=S.audits.filter(a=>a.confirmed).length;
-  const activeAuditors=new Set(S.audits.map(a=>a.user_id)).size;
+  const submitted=officialAudits.filter(a=>a.submitted_at).length;
+  const confirmed=officialAudits.filter(a=>a.confirmed).length;
+  // Exclude unofficial auditors (e.g. admin testers) from stats by name
+  const excludedNames=['Marcus Wong (SSG)','Marcus Admin'];
+  const excludedIds=new Set(S.profiles.filter(p=>excludedNames.includes(p.full_name)).map(p=>p.id));
+  const officialAudits=S.audits.filter(a=>!excludedIds.has(a.user_id));
+  const activeAuditors=new Set(officialAudits.map(a=>a.user_id)).size;
   const pct=total?Math.round(completed/total*100):0;
   const claimedPct=total?Math.round(claimed/total*100):0;
 
@@ -1053,7 +1057,7 @@ function renderProgress(){
   }).join('');
 
   // ── Auditor workload ──────────────────────────────────────
-  const auditorStats=S.profiles.map(p=>{
+  const auditorStats=S.profiles.filter(p=>!excludedIds.has(p.id)).map(p=>{
     const ua=S.audits.filter(a=>a.user_id===p.id);
     return{id:p.id,name:p.full_name,claimed:ua.length,confirmed:ua.filter(a=>a.confirmed).length,submitted:ua.filter(a=>a.submitted_at).length};
   }).sort((a,b)=>b.claimed-a.claimed||a.name.localeCompare(b.name));
@@ -1196,8 +1200,11 @@ function renderAdmin(){
     });
     return {html:rows.map(a=>{
       const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
-      return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:200px">${esc(c?.name||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td><td>${esc(a.preferred_date||'—')}</td><td>${esc(c?.course_fee||'—')}</td>
-        <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-green btn-sm" onclick="adminConfirm('${a.id}','${a.course_id}')">Confirm</button><button class="btn btn-red btn-sm" onclick="openRejectModal('${a.id}','${a.course_id}')">Reject</button></div></td></tr>`;
+      return`<tr><td>${esc(p?.full_name||'—')}</td><td style="max-width:220px">${esc(c?.name||'—')}</td><td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td><td>${esc(a.preferred_date||'—')}</td>
+        <td><div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-green btn-sm" onclick="openConfirmWithDate('${a.id}','${a.course_id}')">Confirm</button>
+          <button class="btn btn-red btn-sm" onclick="openRejectModal('${a.id}','${a.course_id}')">Reject</button>
+        </div></td></tr>`;
     }).join(''), count:rows.length};
   })();
   const submittedRows=(()=>{
@@ -1245,7 +1252,7 @@ function renderAdmin(){
           </select>
         </div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Preferred Date</th><th>Fee</th><th>Action</th></tr></thead>
+          <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Preferred Date</th><th>Action</th></tr></thead>
           <tbody>${pendingRows.html || '<tr><td colspan="6"><div class="empty-state" style="padding:20px"><div class="empty-txt">No results match filters.</div></div></td></tr>'}</tbody>
         </table></div>
         <div style="font-size:12px;color:var(--text3);margin-top:6px">${pendingRows.count} of ${pending.length} shown</div>
@@ -1285,15 +1292,16 @@ function renderAdmin(){
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Run Date</th><th>Fee</th><th>Action</th></tr></thead>
+            <thead><tr><th>Auditor</th><th>Course</th><th>Provider</th><th>Run Date</th><th>Action</th></tr></thead>
             <tbody>${rows.length ? rows.map(a=>{
               const c=S.courses.find(x=>x.id===a.course_id),p=profile(a.user_id);
               return`<tr>
                 <td>${esc(p?.full_name||'—')}</td>
-                <td style="max-width:200px">${esc(c?.name||'—')}</td>
+                <td style="max-width:220px">${esc(c?.name||'—')}</td>
                 <td style="font-size:12px;color:var(--text2)">${esc(c?.training_provider||'—')}</td>
-                <td style="font-size:12px;color:var(--text2)">${esc(a.preferred_date||'—')}</td>
-                <td>${esc(c?.course_fee||'—')}</td>
+                <td style="font-size:12px;color:var(--text2)">
+                  <button class="auditor-link" style="font-size:12px" onclick="openChangeDateModal('${a.id}','${c?.id||''}','${esc(a.preferred_date||'')}','${esc(c?.next_run||'')}')">${esc(a.preferred_date||'—')} ✏️</button>
+                </td>
                 <td><button class="btn btn-red btn-sm" onclick="adminUnconfirm('${a.id}','${a.course_id}')">Unconfirm</button></td>
               </tr>`;
             }).join('') : '<tr><td colspan="6"><div class="empty-state" style="padding:20px"><div class="empty-txt">No results match your filters.</div></div></td></tr>'}
@@ -1355,6 +1363,84 @@ function renderAdmin(){
         <button class="btn btn-primary" style="width:auto;min-width:140px" onclick="adminAddCourse()">Add Course</button>
       </div>
     </div>`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  CONFIRM WITH DATE + CHANGE DATE MODALS
+// ─────────────────────────────────────────────────────────
+let _confirmAuditId=null, _confirmCourseId=null;
+let _changeDateAuditId=null, _changeDateCourseId=null;
+
+function buildDateOptions(containerId, nextRun, radioName) {
+  const dates = parseRunDates(nextRun);
+  const container = qs('#'+containerId);
+  if (!container) return;
+  if (dates.length && dates[0] !== 'TBC – Date to be confirmed') {
+    container.style.display = '';
+    container.innerHTML = dates.map((d,i) => `
+      <label class="radio-option" id="${radioName}-opt-${i}">
+        <input type="radio" name="${radioName}" value="${esc(d)}"
+          onchange="document.querySelectorAll('[id^=${radioName}-opt-]').forEach(e=>e.classList.remove('selected'));document.getElementById('${radioName}-opt-${i}').classList.add('selected')">
+        <span class="radio-label">${esc(d)}</span>
+      </label>`).join('');
+  } else {
+    container.style.display = 'none';
+    container.innerHTML = '';
+  }
+}
+
+function openConfirmWithDate(auditId, courseId) {
+  const course = S.courses.find(c => c.id === courseId);
+  const audit = S.audits.find(a => a.id === auditId);
+  if (!course || !audit) return;
+  _confirmAuditId = auditId; _confirmCourseId = courseId;
+  const p = profile(audit.user_id);
+  qs('#cd-course-name').textContent = (p?.full_name||'') + ' — ' + course.name;
+  buildDateOptions('cd-date-options', course.next_run, 'cd-date');
+  qs('#cd-date-custom').value = audit.preferred_date || '';
+  qs('#confirm-date-modal').classList.add('open');
+}
+function closeConfirmDateModal() {
+  qs('#confirm-date-modal').classList.remove('open');
+  _confirmAuditId = _confirmCourseId = null;
+}
+async function doConfirmWithDate() {
+  const radioDate = document.querySelector('input[name="cd-date"]:checked')?.value || '';
+  const customDate = qs('#cd-date-custom').value.trim();
+  const date = radioDate || customDate;
+  if (!date) return toast('Please select or enter a date.', 'error');
+  const { error } = await db.from('audits').update({ confirmed: true, preferred_date: date }).eq('id', _confirmAuditId);
+  if (error) return toast(error.message, 'error');
+  await db.from('courses').update({ status: 'Confirmed' }).eq('id', _confirmCourseId);
+  closeConfirmDateModal();
+  toast('Slot confirmed: ' + date, 'success');
+  await reload();
+}
+
+function openChangeDateModal(auditId, courseId, currentDate, nextRun) {
+  _changeDateAuditId = auditId; _changeDateCourseId = courseId;
+  const course = S.courses.find(c => c.id === courseId);
+  const audit = S.audits.find(a => a.id === auditId);
+  const p = audit ? profile(audit.user_id) : null;
+  qs('#chd-course-name').textContent = (p?.full_name||'') + ' — ' + (course?.name||'');
+  buildDateOptions('chd-date-options', nextRun, 'chd-date');
+  qs('#chd-date-custom').value = currentDate || '';
+  qs('#change-date-modal').classList.add('open');
+}
+function closeChangeDateModal() {
+  qs('#change-date-modal').classList.remove('open');
+  _changeDateAuditId = _changeDateCourseId = null;
+}
+async function doChangeDate() {
+  const radioDate = document.querySelector('input[name="chd-date"]:checked')?.value || '';
+  const customDate = qs('#chd-date-custom').value.trim();
+  const date = radioDate || customDate;
+  if (!date) return toast('Please select or enter a date.', 'error');
+  const { error } = await db.from('audits').update({ preferred_date: date }).eq('id', _changeDateAuditId);
+  if (error) return toast(error.message, 'error');
+  closeChangeDateModal();
+  toast('Date updated: ' + date, 'success');
+  await reload();
 }
 
 async function adminUnconfirm(auditId, courseId) {
@@ -1671,6 +1757,8 @@ document.addEventListener('click',e=>{
   if(e.target.id==='course-detail-modal')qs('#course-detail-modal').classList.remove('open');
   if(e.target.id==='assign-modal')closeAssignModal();
   if(e.target.id==='eval-view-modal')closeEvalViewModal();
+  if(e.target.id==='confirm-date-modal')closeConfirmDateModal();
+  if(e.target.id==='change-date-modal')closeChangeDateModal();
 });
 
 // Heartbeat autosave every 30 seconds for any in-progress forms
@@ -1763,6 +1851,53 @@ init();
     <div class="modal-body" id="evm-body" style="padding-top:12px"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeEvalViewModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Confirm With Date Modal -->
+<div class="modal-overlay" id="confirm-date-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head">
+      <div class="modal-title">Confirm Slot</div>
+      <button class="modal-x" onclick="closeConfirmDateModal()">×</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div id="cd-course-name" style="font-weight:500;font-size:14px;color:var(--text);padding:10px 13px;background:var(--bg3);border:1px solid var(--border);border-radius:8px"></div>
+      <div>
+        <div class="form-label">Select run date</div>
+        <div id="cd-date-options" class="radio-group"></div>
+        <div style="font-size:12px;color:var(--text3);margin-top:8px">Or enter a custom date:</div>
+        <input class="form-input" id="cd-date-custom" type="text" placeholder="e.g. 15 Jul" style="margin-top:6px">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeConfirmDateModal()">Cancel</button>
+      <button class="btn btn-green" style="width:auto" onclick="doConfirmWithDate()">Confirm Slot</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Date Modal -->
+<div class="modal-overlay" id="change-date-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head">
+      <div class="modal-title">Change Run Date</div>
+      <button class="modal-x" onclick="closeChangeDateModal()">×</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div id="chd-course-name" style="font-weight:500;font-size:14px;color:var(--text);padding:10px 13px;background:var(--bg3);border:1px solid var(--border);border-radius:8px"></div>
+      <div>
+        <div class="form-label">Select new run date</div>
+        <div id="chd-date-options" class="radio-group"></div>
+        <div style="font-size:12px;color:var(--text3);margin-top:8px">Or enter a custom date:</div>
+        <input class="form-input" id="chd-date-custom" type="text" placeholder="e.g. 15 Jul" style="margin-top:6px">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeChangeDateModal()">Cancel</button>
+      <button class="btn btn-primary" style="width:auto" onclick="doChangeDate()">Save Date</button>
     </div>
   </div>
 </div>
