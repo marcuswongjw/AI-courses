@@ -303,7 +303,7 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
 
 <!-- Auditor Profile Modal -->
 <div class="modal-overlay" id="auditor-modal">
-  <div class="modal" style="max-width:560px">
+  <div class="modal" style="max-width:660px">
     <div class="modal-head">
       <div class="modal-title" id="auditor-modal-title">Auditor Courses</div>
       <button class="modal-x" onclick="closeAuditorModal()">×</button>
@@ -1526,19 +1526,120 @@ async function toggleRecommended(courseId,current){
 
 function openAuditorModal(userId){
   const p=S.profiles.find(x=>x.id===userId),ua=S.audits.filter(a=>a.user_id===userId);if(!p)return;
-  qs('#auditor-modal-title').textContent=p.full_name;
-  const rows=ua.map(a=>{
-    const c=S.courses.find(x=>x.id===a.course_id);if(!c)return'';
-    let stateLabel,stateColor;
-    if(a.submitted_at){stateLabel='Submitted';stateColor='var(--green)';}
-    else if(a.rejection_reason){stateLabel='Rejected';stateColor='var(--red)';}
-    else if(a.confirmed){stateLabel='Confirmed';stateColor='var(--accent)';}
-    else{stateLabel='Pending';stateColor='var(--amber)';}
-    return`<tr><td style="max-width:260px"><div style="font-weight:500;font-size:13px">${esc(c.name)}</div>${a.preferred_date?`<span style="font-size:11px;color:var(--text3)">${esc(a.preferred_date)}</span>`:''}</td><td>${tierBadgeHtml(c.pick)}</td><td><span style="font-size:12px;font-weight:600;color:${stateColor}">${stateLabel}</span></td>${S.profile?.is_admin?`<td><button class="btn btn-secondary btn-sm" style="font-size:11px" onclick="closeAuditorModal();openFillOnBehalf('${a.id}','${userId}')">Fill Form</button></td>`:'<td></td>'}</tr>`;
-  }).join('');
-  qs('#auditor-modal-body').innerHTML=ua.length?`<div class="table-wrap" style="margin:0"><table><thead><tr><th>Course</th><th>Tier</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<p style="color:var(--text2);font-size:13px;padding:8px 0">No audits found for this user.</p>`;
+
+  // Profile header
+  const totalClaimed=ua.length;
+  const confirmed=ua.filter(a=>a.confirmed&&!a.submitted_at).length;
+  const submitted=ua.filter(a=>a.submitted_at).length;
+  const pending=ua.filter(a=>!a.confirmed&&!a.submitted_at&&!a.rejection_reason).length;
+  const rejected=ua.filter(a=>a.rejection_reason).length;
+
+  // Get user email from Supabase auth if available (stored in user object if it's current user)
+  const email = p.email || '—';
+
+  qs('#auditor-modal-title').textContent = p.full_name;
+  qs('#auditor-modal-body').innerHTML = `
+    <!-- Profile section -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
+        <div>
+          <div style="font-size:11px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Full Name</div>
+          <div id="am-name-display" style="font-size:15px;font-weight:600;color:var(--text)">${esc(p.full_name)}</div>
+          <div id="am-name-edit" style="display:none;margin-top:4px">
+            <div style="display:flex;gap:8px;align-items:center">
+              <input class="form-input" id="am-name-input" type="text" value="${esc(p.full_name)}" style="font-size:14px;padding:7px 11px;flex:1">
+              <button class="btn btn-green btn-sm" onclick="saveAuditorName('${userId}')">Save</button>
+              <button class="btn btn-secondary btn-sm" onclick="cancelEditName()">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="startEditName()" id="am-edit-btn" style="flex-shrink:0">✏️ Edit name</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="grid-column:1/-1">
+          <div style="font-size:11px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Email</div>
+          <div style="font-size:13px;color:var(--text2)">${esc(p.email||'—')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Member since</div>
+          <div style="font-size:12px;color:var(--text2)">${p.created_at?new Date(p.created_at).toLocaleDateString('en-SG',{day:'numeric',month:'short',year:'numeric'}):'—'}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Admin</div>
+          <div style="font-size:12px;color:var(--text2)">${p.is_admin?'<span style="color:var(--amber)">Yes</span>':'No'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+      ${[
+        {val:totalClaimed,lbl:'Claimed',col:'var(--amber)'},
+        {val:confirmed,lbl:'Confirmed',col:'var(--accent)'},
+        {val:submitted,lbl:'Submitted',col:'var(--green)'},
+        {val:rejected,lbl:'Rejected',col:'var(--red)'},
+      ].map(s=>`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-align:center">
+        <div style="font-family:var(--head);font-size:22px;font-weight:800;color:${s.col};line-height:1;margin-bottom:3px">${s.val}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3)">${s.lbl}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- Course list -->
+    ${ua.length ? `<div style="font-size:12px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Assigned Courses</div>
+    <div class="table-wrap" style="margin:0">
+      <table>
+        <thead><tr><th>Course</th><th>Provider</th><th>Run Date</th><th>Status</th>${S.profile?.is_admin?'<th></th>':''}</tr></thead>
+        <tbody>${ua.map(a=>{
+          const c=S.courses.find(x=>x.id===a.course_id);if(!c)return'';
+          let stateLabel,stateColor;
+          if(a.submitted_at){stateLabel='Submitted';stateColor='var(--green)';}
+          else if(a.rejection_reason){stateLabel='Rejected';stateColor='var(--red)';}
+          else if(a.confirmed){stateLabel='Confirmed';stateColor='var(--accent)';}
+          else{stateLabel='Pending';stateColor='var(--amber)';}
+          return`<tr>
+            <td style="max-width:200px;font-size:13px;font-weight:500">${esc(c.name)}</td>
+            <td style="font-size:12px;color:var(--text2)">${esc(c.training_provider||'—')}</td>
+            <td style="font-size:12px;color:var(--text2)">${esc(a.preferred_date||'—')}</td>
+            <td><span style="font-size:12px;font-weight:600;color:${stateColor}">${stateLabel}</span></td>
+            ${S.profile?.is_admin?`<td><button class="btn btn-secondary btn-sm" style="font-size:11px" onclick="closeAuditorModal();openFillOnBehalf('${a.id}','${userId}')">Fill Form</button></td>`:'<td></td>'}
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>` : `<p style="color:var(--text2);font-size:13px;padding:8px 0">No courses assigned yet.</p>`}
+  `;
+
   qs('#auditor-modal').classList.add('open');
 }
+
+function startEditName(){
+  qs('#am-name-display').style.display='none';
+  qs('#am-name-edit').style.display='';
+  qs('#am-edit-btn').style.display='none';
+  setTimeout(()=>qs('#am-name-input')?.focus(),50);
+}
+
+function cancelEditName(){
+  qs('#am-name-display').style.display='';
+  qs('#am-name-edit').style.display='none';
+  qs('#am-edit-btn').style.display='';
+}
+
+async function saveAuditorName(userId){
+  const newName=qs('#am-name-input')?.value.trim();
+  if(!newName)return toast('Name cannot be empty.','error');
+  const{error}=await db.from('profiles').update({full_name:newName}).eq('id',userId);
+  if(error)return toast(error.message,'error');
+  // Update local state
+  const p=S.profiles.find(x=>x.id===userId);
+  if(p)p.full_name=newName;
+  toast('Name updated.','success');
+  cancelEditName();
+  qs('#am-name-display').textContent=newName;
+  qs('#auditor-modal-title').textContent=newName;
+  // Refresh header if it's the current user
+  if(userId===S.user?.id)qs('#hdr-user').textContent=newName;
+}
+
 function closeAuditorModal(){qs('#auditor-modal').classList.remove('open');}
 function openFillOnBehalf(auditId,userId){const audit=S.audits.find(a=>a.id===auditId),course=S.courses.find(c=>c.id===audit?.course_id);if(!audit||!course)return;closeAuditorModal();S.fillOnBehalf={auditId,userId};switchTab('myaudits');}
 async function submitOnBehalf(auditId,courseId){
