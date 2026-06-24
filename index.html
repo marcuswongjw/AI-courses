@@ -394,8 +394,8 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const S = {
   user:null,profile:null,courses:[],audits:[],profiles:[],
   tab:'courses',
-  filters:{search:'',status:'',tier:'',arch:'',provider:'',recommended:false},
-  sort:{col:'name',dir:'asc'},
+  filters:{search:'',status:'',tier:'',arch:'',provider:'',recommended:true},
+  sort:{col:'provider',dir:'asc'},
   formEdits:{},saveTimers:{},
   pendingClaim:{courseId:null,date:''},
   fillOnBehalf:null,
@@ -582,8 +582,18 @@ function renderCourses() {
       action=`<button class="btn btn-amber btn-sm" onclick="openClaimModal('${c.id}')">Claim</button>`;
     }
 
-    return `<tr${c.recommended?' style="background:rgba(251,191,36,.03)"':''}>
-      <td><div style="display:flex;align-items:center;gap:6px">${starBtn}<button class="auditor-link" style="font-size:14px;font-weight:500;text-align:left;line-height:1.35;max-width:200px;display:inline-block" onclick="openCourseDetailModal('${c.id}')">${esc(c.name)}</button></div></td>
+    // Highlight unclaimed recommended courses
+    const isUnclaimedRec = c.recommended && c.status === 'Unassigned';
+    const rowBg = isUnclaimedRec
+      ? 'style="background:rgba(251,191,36,.07);border-left:3px solid rgba(251,191,36,.6)"'
+      : c.recommended ? 'style="background:rgba(251,191,36,.03)"' : '';
+    return `<tr ${rowBg}>
+      <td><div style="display:flex;align-items:center;gap:6px">${starBtn}
+        <div>
+          <button class="auditor-link" style="font-size:14px;font-weight:500;text-align:left;line-height:1.35;max-width:200px;display:inline-block" onclick="openCourseDetailModal('${c.id}')">${esc(c.name)}</button>
+          ${isUnclaimedRec ? '<div style="font-size:10px;font-weight:600;color:#f59e0b;font-family:var(--mono);letter-spacing:.04em;margin-top:2px">⚡ AVAILABLE</div>' : ''}
+        </div>
+      </div></td>
       <td><span style="font-size:12px;color:var(--text2)">${esc(c.archetype)}</span></td>
       <td style="font-size:12px;color:var(--text2);max-width:140px;line-height:1.4">${esc(c.training_provider||'—')}</td>
       <td style="font-size:12px;color:var(--text2);max-width:140px;line-height:1.4">${esc(c.next_run||'TBC')}</td>
@@ -625,9 +635,12 @@ function renderCourses() {
           <option value="">All Providers</option>
           ${[...new Set(S.courses.map(c=>c.training_provider).filter(Boolean))].sort().map(p=>`<option value="${p}" ${S.filters.provider===p?'selected':''}>${esc(p)}</option>`).join('')}
         </select>
-        <button class="filter-star-btn${S.filters.recommended?' active':''}" onclick="S.filters.recommended=!S.filters.recommended;renderCourses()">
-          ⭐ Recommended${recCount?' ('+recCount+')':''}
-        </button>
+        ${(()=>{
+          const unclaimedRec=S.courses.filter(c=>c.recommended&&c.status==='Unassigned').length;
+          return`<button class="filter-star-btn${S.filters.recommended?' active':''}" onclick="S.filters.recommended=!S.filters.recommended;renderCourses()">
+            ⭐ Recommended${recCount?' ('+recCount+')':''}${unclaimedRec?' · <span style="color:#f59e0b">'+unclaimedRec+' available</span>':''}
+          </button>`;
+        })()}
         ${hasFilters?`<button class="btn btn-secondary btn-sm" style="font-size:12px;white-space:nowrap" onclick="S.filters={search:'',status:'',tier:'',arch:'',provider:'',recommended:false};renderCourses()">✕ Clear</button>`:''}
         <span style="color:var(--text3);font-size:12px;white-space:nowrap">${courses.length} course${courses.length!==1?'s':''}</span>
       </div>
