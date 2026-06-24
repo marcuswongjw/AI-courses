@@ -1118,11 +1118,28 @@ function renderProgress(){
       </div>
     </div>
 
-    <!-- ── Provider breakdown ── -->
+    <!-- ── Provider coverage ── -->
     <div class="progress-card" style="margin-bottom:14px">
-      <div class="progress-card-title">Progress by Training Provider</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0 24px">
-        ${providerRows||'<span style="color:var(--text3);font-size:13px">No data yet</span>'}
+      <div class="progress-card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Training Provider Coverage</span>
+        <span style="font-size:12px;font-weight:400;color:var(--text2);font-family:var(--mono)">${providers.filter(p=>S.courses.some(c=>c.training_provider===p&&['Claimed','Confirmed','Completed'].includes(c.status))).length} / ${providers.length} providers with active audits</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:4px">
+        ${providers.map(p=>{
+          const pc=S.courses.filter(c=>c.training_provider===p);
+          const hasClaimed=pc.some(c=>['Claimed','Confirmed','Completed'].includes(c.status));
+          const hasSubmitted=pc.some(c=>c.status==='Completed');
+          const col=hasSubmitted?'var(--green)':hasClaimed?'var(--amber)':'var(--border2)';
+          const icon=hasSubmitted?'✓':hasClaimed?'⏳':'—';
+          const label=hasSubmitted?'Submitted':hasClaimed?'In progress':'Not started';
+          return`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border:1px solid ${col}40;border-radius:8px">
+            <span style="font-size:13px;color:${col};flex-shrink:0;width:16px;text-align:center">${icon}</span>
+            <div style="min-width:0">
+              <div style="font-size:12px;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(p)}">${esc(p)}</div>
+              <div style="font-size:10px;color:${col};font-family:var(--mono)">${label} · ${pc.length} course${pc.length!==1?'s':''}</div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>
     </div>
 
@@ -1241,7 +1258,7 @@ function renderAdmin(){
             oninput="S.adminFilters.confirmed.search=this.value;renderAdmin()" style="flex:1;min-width:180px;font-size:13px;padding:6px 10px">
           <select class="filter-select" onchange="S.adminFilters.confirmed.provider=this.value;renderAdmin()">
             <option value="">All Providers</option>
-            \${adminProviderOpts(confirmed_audits,'confirmed')}
+            ${adminProviderOpts(confirmed_audits,'confirmed')}
           </select>
           <select class="filter-select" onchange="S.adminSort.confirmed={col:this.value.split(':')[0],dir:this.value.split(':')[1]};renderAdmin()">
             <option value="auditor:asc">Sort: Auditor A–Z</option>
@@ -1535,15 +1552,20 @@ async function saveAuditorName(userId){
   if(!newName)return toast('Name cannot be empty.','error');
   const{error}=await db.from('profiles').update({full_name:newName}).eq('id',userId);
   if(error)return toast(error.message,'error');
-  // Update local state
+  // Update local state immediately
   const p=S.profiles.find(x=>x.id===userId);
   if(p)p.full_name=newName;
-  toast('Name updated.','success');
+  // Update all visible name references
   cancelEditName();
   qs('#am-name-display').textContent=newName;
   qs('#auditor-modal-title').textContent=newName;
-  // Refresh header if it's the current user
-  if(userId===S.user?.id)qs('#hdr-user').textContent=newName;
+  if(userId===S.user?.id){
+    qs('#hdr-user').textContent=newName;
+    if(S.profile)S.profile.full_name=newName;
+  }
+  toast('Name updated.','success');
+  // Re-render progress tab if active so workload table updates
+  if(S.tab==='progress')renderProgress();
 }
 
 function closeAuditorModal(){qs('#auditor-modal').classList.remove('open');}
