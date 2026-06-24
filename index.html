@@ -463,6 +463,10 @@ function switchTab(tab){
   if(S.fillOnBehalf&&tab!=='myaudits')S.fillOnBehalf=null;
   S.tab=tab;
   qsa('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  // Update URL hash without reloading
+  const hashMap={courses:'',myaudits:'my-audits',progress:'progress',admin:'admin'};
+  const hash=hashMap[tab]||'';
+  history.replaceState(null,'',location.pathname+(hash?'#'+hash:''));
   render();
 }
 
@@ -1156,6 +1160,17 @@ function renderProgress(){
     </div>`:''}`;
 }
 
+function adminProviderOpts(audits, section) {
+  const providers = [...new Set(audits.map(a => S.courses.find(x=>x.id===a.course_id)?.training_provider).filter(Boolean))].sort();
+  const cur = S.adminFilters[section]?.provider || '';
+  return providers.map(p => `<option value="${esc(p)}" ${cur===p?'selected':''}>${esc(p)}</option>`).join('');
+}
+function adminRecOpts() {
+  const opts = ['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'];
+  const cur = S.adminFilters.submitted.recommendation;
+  return opts.map(r => `<option value="${esc(r)}" ${cur===r?'selected':''}>${esc(r)}</option>`).join('');
+}
+
 function renderAdmin(){
   closeRejectModal();
   const el=qs('#admin-content');
@@ -1613,7 +1628,16 @@ function showApp(resetTab=true){
   qs('#hdr-user').textContent=S.profile?.full_name||S.user?.email||'User';
   qs('#hdr-admin').style.display=S.profile?.is_admin?'':'none';
   qs('#admin-nav-tab').style.display=S.profile?.is_admin?'':'none';
-  if(resetTab){S.tab='courses';qsa('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='courses'));}
+  if(resetTab){
+    // Restore tab from URL hash
+    const hashToTab={'my-audits':'myaudits','progress':'progress','admin':'admin'};
+    const hash=location.hash.replace('#','');
+    const tabFromHash=hashToTab[hash]||'courses';
+    // Only use admin tab from hash if user is admin
+    const resolvedTab=(tabFromHash==='admin'&&!S.profile?.is_admin)?'courses':tabFromHash;
+    S.tab=resolvedTab;
+    qsa('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===resolvedTab));
+  }
   renderNotifications();render();
 }
 
