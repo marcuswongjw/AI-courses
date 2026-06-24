@@ -989,14 +989,14 @@ async function saveRemark(courseId, value) {
 function renderProgress(){
   const el=qs('#progress-content');
   const total=S.courses.length;
+  // Exclude unofficial auditors from stats
+  const excludedNames=['Marcus Wong (SSG)','Marcus Admin'];
+  const excludedIds=new Set(S.profiles.filter(p=>excludedNames.includes(p.full_name)).map(p=>p.id));
+  const officialAudits=S.audits.filter(a=>!excludedIds.has(a.user_id));
   const completed=S.courses.filter(c=>c.status==='Completed').length;
   const claimed=S.courses.filter(c=>['Claimed','Confirmed','Completed'].includes(c.status)).length;
   const submitted=officialAudits.filter(a=>a.submitted_at).length;
   const confirmed=officialAudits.filter(a=>a.confirmed).length;
-  // Exclude unofficial auditors (e.g. admin testers) from stats by name
-  const excludedNames=['Marcus Wong (SSG)','Marcus Admin'];
-  const excludedIds=new Set(S.profiles.filter(p=>excludedNames.includes(p.full_name)).map(p=>p.id));
-  const officialAudits=S.audits.filter(a=>!excludedIds.has(a.user_id));
   const activeAuditors=new Set(officialAudits.map(a=>a.user_id)).size;
   const pct=total?Math.round(completed/total*100):0;
   const claimedPct=total?Math.round(claimed/total*100):0;
