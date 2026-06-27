@@ -189,6 +189,14 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.upload-zone{border:2px dashed var(--border2);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg3)}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(74,143,255,.05)}
+.upload-zone input[type=file]{display:none}
+.file-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text2);max-width:100%}
+.file-chip a{color:var(--accent);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.file-chip a:hover{text-decoration:underline}
+.file-chip .del-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0;flex-shrink:0}
+.file-chip .del-btn:hover{color:var(--red)}
 @media(max-width:600px){.app-content{padding:18px 14px}.auth-card{padding:28px 22px}.stats-grid{grid-template-columns:repeat(2,1fr)}td,th{padding:9px 10px}}
 @media(max-width:680px){
   .app-header{padding:0 14px;height:50px}.app-wordmark{font-size:15px}.header-user{display:none}.header-admin-badge{font-size:10px;padding:2px 6px}
@@ -830,6 +838,11 @@ function renderMyAudits(){
     </div>`).join('');
 
   el.innerHTML=statCards+groupHtml;
+  // Load uploaded files for confirmed (not yet submitted) audits after DOM renders
+  setTimeout(()=>{
+    S.audits.filter(a=>a.user_id===S.user?.id&&a.confirmed&&!a.submitted_at&&!a.rejection_reason)
+      .forEach(a=>loadUploadedFiles(a.id, false));
+  }, 150);
 }
 function toggleAuditCard(cardId) {
   const body = qs('#'+cardId);
@@ -867,6 +880,27 @@ function buildActiveFormHtml(audit,course,onBehalf=false){
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> Currency and relevance of tools covered</div>${ratingRow('c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}</div>
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Remaining skills gaps after this course</div>${textArea('c4','Describe significant skills gaps this course does not address…')}</div>
     </div></div>
+    <div class="eval-section">
+      <div class="eval-sec-head"><span class="eval-sec-code">E</span><span class="eval-sec-title">Supporting Materials</span></div>
+      <div class="eval-sec-body">
+        <div class="eval-field">
+          <div class="eval-field-label">Course materials, screenshots, or documents <span style="font-size:11px;color:var(--text3);font-weight:400">(PDF, images, Word, PowerPoint, Excel, MP4 — max 20MB each)</span></div>
+          <div class="upload-zone" id="uz-${id}"
+            ondragover="event.preventDefault();qs('#uz-${id}').classList.add('drag-over')"
+            ondragleave="qs('#uz-${id}').classList.remove('drag-over')"
+            ondrop="event.preventDefault();qs('#uz-${id}').classList.remove('drag-over');handleFileUpload('${id}',event.dataTransfer.files)"
+            onclick="qs('#uf-${id}').click()">
+            <input type="file" id="uf-${id}" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.mp4,.webm,.txt"
+              onchange="handleFileUpload('${id}',this.files)">
+            <div style="font-size:24px;margin-bottom:6px">📎</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:4px">Drop files here or click to upload</div>
+            <div style="font-size:11px;color:var(--text3)" id="uz-status-${id}"></div>
+          </div>
+          <div id="uz-files-${id}" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">D</span><span class="eval-sec-title">Overall Assessment</span></div><div class="eval-sec-body">
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">D1</span> Recommendation</div>${ratingRow('d1',['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'])}</div>
     </div></div>
@@ -881,6 +915,8 @@ function buildSubmittedHtml(audit){
   const r=audit.responses||{},d=new Date(audit.submitted_at).toLocaleDateString('en-SG',{day:'numeric',month:'short',year:'numeric'});
   const roRating=(opts,key)=>!r[key]?`<span style="color:var(--text3)">—</span>`:`<div class="rating-btns">${opts.map(o=>`<button class="r-btn ${r[key]===o?'sel':''}" disabled>${esc(o)}</button>`).join('')}</div>`;
   const roText=key=>r[key]?`<div style="font-size:13px;color:var(--text2);background:var(--bg3);padding:9px 13px;border-radius:8px;border:1px solid var(--border)">${esc(r[key])}</div>`:`<span style="color:var(--text3)">—</span>`;
+  // Load files after submitted view renders
+  setTimeout(()=>loadUploadedFiles(audit.id, true), 100);
   return`<div class="submitted-banner"><div style="display:flex;align-items:center;gap:8px"><span>✓</span><span>Submitted on ${d}</span></div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" onclick="auditorEditEvaluation('${audit.id}')">✏️ Edit Evaluation</button><button class="btn btn-red btn-sm" onclick="auditorDeleteEvaluation('${audit.id}','${audit.course_id}')">🗑 Delete</button></div></div>
   <div class="eval-form">
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">A</span><span class="eval-sec-title">Industry Alignment</span></div><div class="eval-sec-body">
@@ -1363,6 +1399,94 @@ function renderAdmin(){
         <button class="btn btn-primary" style="width:auto;min-width:140px" onclick="adminAddCourse()">Add Course</button>
       </div>
     </div>`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  FILE UPLOAD
+// ─────────────────────────────────────────────────────────
+const BUCKET = 'audit-materials';
+
+async function handleFileUpload(auditId, files) {
+  if (!files || !files.length) return;
+  const statusEl = qs('#uz-status-' + auditId);
+  const MAX = 20 * 1024 * 1024; // 20MB
+
+  for (const file of Array.from(files)) {
+    if (file.size > MAX) {
+      toast(`${file.name} exceeds 20MB limit.`, 'error');
+      continue;
+    }
+    if (statusEl) statusEl.textContent = `Uploading ${file.name}…`;
+    const path = `${S.user.id}/${auditId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+    const { error } = await db.storage.from(BUCKET).upload(path, file, { upsert: false });
+    if (error) {
+      toast(`Upload failed: ${error.message}`, 'error');
+      if (statusEl) statusEl.textContent = '';
+      continue;
+    }
+    toast(`${file.name} uploaded.`, 'success');
+    if (statusEl) statusEl.textContent = '';
+  }
+  // Reset file input
+  const input = qs('#uf-' + auditId);
+  if (input) input.value = '';
+  // Reload file list
+  await loadUploadedFiles(auditId);
+}
+
+async function loadUploadedFiles(auditId, readOnly = false) {
+  const container = qs('#uz-files-' + auditId);
+  if (!container) return;
+
+  // List files for this audit (all users' uploads for this audit)
+  const audit = S.audits.find(a => a.id === auditId);
+  if (!audit) return;
+
+  // Search by audit ID in path
+  const { data, error } = await db.storage.from(BUCKET).list('', {
+    search: auditId,
+    limit: 100
+  });
+
+  // Fallback: list the user's own folder
+  const userId = audit.user_id || S.user.id;
+  const { data: data2 } = await db.storage.from(BUCKET).list(userId + '/' + auditId, { limit: 100 });
+  const files = data2 || [];
+
+  if (!files.length) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text3)">No files uploaded yet.</span>';
+    return;
+  }
+
+  container.innerHTML = files.map(f => {
+    const path = `${userId}/${auditId}/${f.name}`;
+    const { data: urlData } = db.storage.from(BUCKET).getPublicUrl(path);
+    // Use signed URL for private bucket
+    const displayName = f.name.replace(/^\d+_/, ''); // strip timestamp prefix
+    return `<div class="file-chip">
+      <span>📄</span>
+      <a href="#" onclick="downloadFile('${path}','${displayName}');return false" title="${displayName}">${displayName}</a>
+      <span style="font-size:11px;color:var(--text3)">(${(f.metadata?.size/1024).toFixed(0)}KB)</span>
+      ${!readOnly && (S.user.id === userId || S.profile?.is_admin) ? `<button class="del-btn" onclick="deleteFile('${path}','${auditId}','${readOnly}')" title="Delete">×</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function downloadFile(path, filename) {
+  const { data, error } = await db.storage.from(BUCKET).download(path);
+  if (error) return toast('Download failed: ' + error.message, 'error');
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function deleteFile(path, auditId, readOnly) {
+  if (!confirm('Delete this file? This cannot be undone.')) return;
+  const { error } = await db.storage.from(BUCKET).remove([path]);
+  if (error) return toast('Delete failed: ' + error.message, 'error');
+  toast('File deleted.', 'info');
+  await loadUploadedFiles(auditId, readOnly === 'true');
 }
 
 // ─────────────────────────────────────────────────────────
