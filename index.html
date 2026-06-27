@@ -1404,6 +1404,146 @@ function renderAdmin(){
 // ─────────────────────────────────────────────────────────
 //  FILE UPLOAD
 // ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
+//  ADMIN VIEW EVALUATION MODAL
+// ─────────────────────────────────────────────────────────
+function adminViewEvaluation(auditId) {
+  const audit = S.audits.find(a => a.id === auditId);
+  const course = audit ? S.courses.find(c => c.id === audit.course_id) : null;
+  const auditor = audit ? profile(audit.user_id) : null;
+  if (!audit || !course) return;
+
+  const r = audit.responses || {};
+  const submitted = new Date(audit.submitted_at).toLocaleDateString('en-SG',{day:'numeric',month:'short',year:'numeric'});
+
+  qs('#evm-title').textContent = course.name;
+  qs('#evm-meta').textContent = `${auditor?.full_name||'—'} · ${course.training_provider||''} · Run: ${audit.preferred_date||'—'} · Submitted: ${submitted}`;
+
+  const ratingHtml=(opts,key)=>{
+    if(!r[key])return'<span style="color:var(--text3);font-size:13px">—</span>';
+    return`<div style="display:flex;gap:4px;flex-wrap:wrap">${opts.map(o=>
+      `<span style="padding:5px 12px;border-radius:7px;font-size:13px;border:1px solid;${r[key]===o
+        ?'background:rgba(74,143,255,.14);border-color:rgba(74,143,255,.35);color:var(--accent);font-weight:500'
+        :'background:var(--bg3);border-color:var(--border);color:var(--text3)'}">${esc(o)}</span>`
+    ).join('')}</div>`;
+  };
+  const textHtml=key=>r[key]
+    ?`<div style="font-size:13px;color:var(--text2);background:var(--bg3);padding:10px 13px;border-radius:8px;border:1px solid var(--border);line-height:1.6;white-space:pre-wrap">${esc(r[key])}</div>`
+    :'<span style="color:var(--text3);font-size:13px">—</span>';
+  const sec=(code,title,fields)=>`
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+      <div style="background:var(--bg3);border-bottom:1px solid var(--border);padding:9px 16px;display:flex;align-items:center;gap:10px">
+        <span style="font-family:var(--mono);font-size:11px;font-weight:500;color:var(--accent);text-transform:uppercase;letter-spacing:.08em">${code}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--text)">${title}</span>
+      </div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:12px">${fields}</div>
+    </div>`;
+  const fld=(code,label,content)=>`
+    <div>
+      <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px;display:flex;align-items:center;gap:5px">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--accent);background:rgba(74,143,255,.1);padding:1px 6px;border-radius:4px">${code}</span>${label}
+      </div>${content}
+    </div>`;
+
+  const userId = audit.user_id;
+  const uploadSection = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+      <div style="background:var(--bg3);border-bottom:1px solid var(--border);padding:9px 16px;display:flex;align-items:center;gap:10px">
+        <span style="font-family:var(--mono);font-size:11px;font-weight:500;color:var(--accent);text-transform:uppercase;letter-spacing:.08em">E</span>
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Supporting Materials</span>
+      </div>
+      <div style="padding:14px">
+        <div class="upload-zone" id="evm-uz-${auditId}"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="event.preventDefault();this.classList.remove('drag-over');handleFileUploadAdmin('${auditId}','${userId}',event.dataTransfer.files)"
+          onclick="qs('#evm-uf-${auditId}').click()">
+          <input type="file" id="evm-uf-${auditId}" multiple
+            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.mp4,.webm,.txt"
+            onchange="handleFileUploadAdmin('${auditId}','${userId}',this.files)">
+          <div style="font-size:18px;margin-bottom:3px">📎</div>
+          <div style="font-size:12px;color:var(--text2)">Drop files or click to upload</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">PDF, images, Office docs, MP4 — max 20MB each</div>
+        </div>
+        <div id="evm-files-${auditId}" style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+          <span style="font-size:12px;color:var(--text3)">Loading files…</span>
+        </div>
+      </div>
+    </div>`;
+
+  qs('#evm-body').innerHTML =
+    sec('A','Industry Alignment',
+      fld('A1','Alignment with current industry AI trends',ratingHtml(['Poor','Limited','Moderate','Strong','Excellent'],'a1'))+
+      fld('A2','Key industry trends or gaps observed',textHtml('a2'))
+    )+
+    sec('B','AI Proficiency Level',
+      fld('B1','Difficulty level relative to stated target audience',ratingHtml(['Significantly below','Below','Appropriate','Above','Significantly above'],'b1'))+
+      fld('B2','Differentiation between beginner and advanced learners',ratingHtml(['No differentiation','Limited','Clear','Excellent'],'b2'))+
+      fld('B3','Evidence and observations',textHtml('b3'))
+    )+
+    sec('C','Skills Progression',
+      fld('C1','Does this course fill identified skills gaps?',ratingHtml(['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'],'c1'))+
+      fld('C2','AI tools and platforms covered',textHtml('c2_tools'))+
+      fld('C3','Currency and relevance of tools covered',ratingHtml(['Outdated','Basic','Current','Advanced','Cutting-edge'],'c3'))+
+      fld('C4','Remaining skills gaps after this course',textHtml('c4'))
+    )+
+    sec('D','Overall Assessment',
+      fld('D1','Recommendation',ratingHtml(['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'],'d1'))
+    )+
+    uploadSection;
+
+  qs('#eval-view-modal').classList.add('open');
+  setTimeout(()=>loadFilesAdmin(auditId, userId, 'evm-files-'+auditId), 100);
+}
+
+function closeEvalViewModal(){
+  qs('#eval-view-modal').classList.remove('open');
+}
+
+async function handleFileUploadAdmin(auditId, userId, files) {
+  if(!files||!files.length)return;
+  const MAX=20*1024*1024;
+  for(const file of Array.from(files)){
+    if(file.size>MAX){toast(`${file.name} exceeds 20MB.`,'error');continue;}
+    const path=`${userId}/${auditId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+    const{error}=await db.storage.from(BUCKET).upload(path,file,{upsert:false});
+    if(error){toast('Upload failed: '+error.message,'error');continue;}
+    toast(`${file.name} uploaded.`,'success');
+  }
+  const inp=qs('#evm-uf-'+auditId);
+  if(inp)inp.value='';
+  await loadFilesAdmin(auditId,userId,'evm-files-'+auditId);
+}
+
+async function loadFilesAdmin(auditId, userId, containerId) {
+  const container=qs('#'+containerId);
+  if(!container)return;
+  const{data:files,error}=await db.storage.from(BUCKET).list(userId+'/'+auditId,{limit:100});
+  if(error||!files||!files.length){
+    container.innerHTML='<span style="font-size:12px;color:var(--text3)">No files uploaded yet.</span>';
+    return;
+  }
+  container.innerHTML=files.map(f=>{
+    const path=`${userId}/${auditId}/${f.name}`;
+    const name=f.name.replace(/^\d+_/,'');
+    const kb=f.metadata?.size?(f.metadata.size/1024).toFixed(0)+'KB':'';
+    return`<div class="file-chip">
+      <span>📄</span>
+      <a href="#" onclick="downloadFile('${path}','${name}');return false" title="${name}">${name}</a>
+      ${kb?`<span style="font-size:11px;color:var(--text3)">(${kb})</span>`:''}
+      <button class="del-btn" onclick="deleteFileAdmin('${path}','${auditId}','${userId}','${containerId}')" title="Delete">×</button>
+    </div>`;
+  }).join('');
+}
+
+async function deleteFileAdmin(path,auditId,userId,containerId){
+  if(!confirm('Delete this file?'))return;
+  const{error}=await db.storage.from(BUCKET).remove([path]);
+  if(error)return toast('Delete failed: '+error.message,'error');
+  toast('File deleted.','info');
+  await loadFilesAdmin(auditId,userId,containerId);
+}
+
 const BUCKET = 'audit-materials';
 
 async function handleFileUpload(auditId, files) {
@@ -1435,41 +1575,10 @@ async function handleFileUpload(auditId, files) {
 }
 
 async function loadUploadedFiles(auditId, readOnly = false) {
-  const container = qs('#uz-files-' + auditId);
-  if (!container) return;
-
-  // List files for this audit (all users' uploads for this audit)
   const audit = S.audits.find(a => a.id === auditId);
   if (!audit) return;
-
-  // Search by audit ID in path
-  const { data, error } = await db.storage.from(BUCKET).list('', {
-    search: auditId,
-    limit: 100
-  });
-
-  // Fallback: list the user's own folder
   const userId = audit.user_id || S.user.id;
-  const { data: data2 } = await db.storage.from(BUCKET).list(userId + '/' + auditId, { limit: 100 });
-  const files = data2 || [];
-
-  if (!files.length) {
-    container.innerHTML = '<span style="font-size:12px;color:var(--text3)">No files uploaded yet.</span>';
-    return;
-  }
-
-  container.innerHTML = files.map(f => {
-    const path = `${userId}/${auditId}/${f.name}`;
-    const { data: urlData } = db.storage.from(BUCKET).getPublicUrl(path);
-    // Use signed URL for private bucket
-    const displayName = f.name.replace(/^\d+_/, ''); // strip timestamp prefix
-    return `<div class="file-chip">
-      <span>📄</span>
-      <a href="#" onclick="downloadFile('${path}','${displayName}');return false" title="${displayName}">${displayName}</a>
-      <span style="font-size:11px;color:var(--text3)">(${(f.metadata?.size/1024).toFixed(0)}KB)</span>
-      ${!readOnly && (S.user.id === userId || S.profile?.is_admin) ? `<button class="del-btn" onclick="deleteFile('${path}','${auditId}','${readOnly}')" title="Delete">×</button>` : ''}
-    </div>`;
-  }).join('');
+  await loadUploadedFilesForAudit(auditId, userId, 'uz-files-' + auditId, readOnly);
 }
 
 async function downloadFile(path, filename) {
@@ -1482,7 +1591,7 @@ async function downloadFile(path, filename) {
 }
 
 async function deleteFile(path, auditId, readOnly) {
-  if (!confirm('Delete this file? This cannot be undone.')) return;
+  if (!confirm('Delete this file?')) return;
   const { error } = await db.storage.from(BUCKET).remove([path]);
   if (error) return toast('Delete failed: ' + error.message, 'error');
   toast('File deleted.', 'info');
