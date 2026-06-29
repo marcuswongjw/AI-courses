@@ -878,20 +878,10 @@ function buildActiveFormHtml(audit,course,onBehalf=false){
     </div></div>
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">C</span><span class="eval-sec-title">Skills Progression</span></div><div class="eval-sec-body">
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C1</span> Does this course fill identified skills gaps?</div>${ratingRow('c1',['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'])}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> Remaining skills gaps after this course</div>${textArea('c2_tools','Describe significant skills gaps this course does not address…',2)}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> AI tools and platforms covered</div>${ratingRow('c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Currency and relevance of tools covered</div>${textArea('c4','List all AI tools and platforms taught in this course…')}</div>
-    </div></div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> Remaining skills gaps after this course</div>${textArea('c4','List all AI tools and platforms taught in this course…')}</div>
-    </div></div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> AI tools and platforms covered</div>${textArea('c2_tools','Describe significant skills gaps this course does not address…',2)}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> AI tools and platforms covered</div>${ratingRow('c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Currency and relevance of tools covered</div>${textArea('c4','List all AI tools and platforms taught in this course…')}</div>
-    </div></div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> Remaining skills gaps after this course</div>${textArea('c4','Describe significant skills gaps this course does not address…',2)}</div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> AI tools and platforms covered</div>${textArea('c2_tools','List all AI tools and platforms taught in this course…',2)}</div>
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Currency and relevance of tools covered</div>${ratingRow('c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Currency and relevance of tools covered</div>${textArea('c4','List all AI tools and platforms taught in this course…')}</div>
-    </div></div>
-    <div class="eval-section">
+    </div></div><div class="eval-section">
       <div class="eval-sec-head"><span class="eval-sec-code">E</span><span class="eval-sec-title">Supporting Materials</span></div>
       <div class="eval-sec-body">
         <div class="eval-field">
