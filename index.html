@@ -873,14 +873,23 @@ function buildActiveFormHtml(audit,course,onBehalf=false){
     </div></div>
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">B</span><span class="eval-sec-title">AI Proficiency Level</span></div><div class="eval-sec-body">
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">B1</span> Difficulty level relative to stated target audience</div>${ratingRow('b1',['Significantly below','Below','Appropriate','Above','Significantly above'])}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">B2</span> Differentiation between beginner and advanced learners</div>${ratingRow('b2',['No differentiation','Limited','Clear','Excellent'])}</div>
+
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">B3</span> Evidence and observations</div>${textArea('b3','Describe specific evidence supporting your ratings above…')}</div>
     </div></div>
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">C</span><span class="eval-sec-title">Skills Progression</span></div><div class="eval-sec-body">
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C1</span> Does this course fill identified skills gaps?</div>${ratingRow('c1',['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'])}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> AI tools and platforms covered</div>${textArea('c2_tools','List all AI tools and platforms taught in this course…',2)}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> Currency and relevance of tools covered</div>${ratingRow('c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Remaining skills gaps after this course</div>${textArea('c4','Describe significant skills gaps this course does not address…')}</div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> Remaining skills gaps after this course</div>${textArea('c2_tools','Describe significant skills gaps this course does not address…',2)}</div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> AI tools and platforms covered</div>${ratingRow('c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}</div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Currency and relevance of tools covered</div>${textArea('c4','List all AI tools and platforms taught in this course…')}</div>
+    </div></div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> Remaining skills gaps after this course</div>${textArea('c4','List all AI tools and platforms taught in this course…')}</div>
+    </div></div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> AI tools and platforms covered</div>${textArea('c2_tools','Describe significant skills gaps this course does not address…',2)}</div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C3</span> AI tools and platforms covered</div>${ratingRow('c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}</div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Currency and relevance of tools covered</div>${textArea('c4','List all AI tools and platforms taught in this course…')}</div>
+    </div></div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Currency and relevance of tools covered</div>${ratingRow('c3',['Outdated','Basic','Current','Advanced','Cutting-edge'])}</div>
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">C4</span> Currency and relevance of tools covered</div>${textArea('c4','List all AI tools and platforms taught in this course…')}</div>
     </div></div>
     <div class="eval-section">
       <div class="eval-sec-head"><span class="eval-sec-code">E</span><span class="eval-sec-title">Supporting Materials</span></div>
@@ -927,9 +936,7 @@ function buildSubmittedHtml(audit){
     </div></div>
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">B</span><span class="eval-sec-title">AI Proficiency Level</span></div><div class="eval-sec-body">
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">B1</span> Difficulty</div>${roRating(['Significantly below','Below','Appropriate','Above','Significantly above'],'b1')}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">B2</span> Differentiation</div>${roRating(['No differentiation','Limited','Clear','Excellent'],'b2')}</div>
-      <div class="eval-field"><div class="eval-field-label"><span class="field-code">B3</span> Evidence</div>${roText('b3')}</div>
-    </div></div>
+      
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">C</span><span class="eval-sec-title">Skills Progression</span></div><div class="eval-sec-body">
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C1</span> Gaps filled</div>${roRating(['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'],'c1')}</div>
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> Tools covered</div>${roText('c2_tools')}</div>
@@ -993,7 +1000,6 @@ async function submitAudit(auditId,courseId){
     {key:'a1',label:'A1 — Industry Alignment rating'},
     {key:'a2',label:'A2 — Key industry trends or gaps'},
     {key:'b1',label:'B1 — Difficulty level rating'},
-    {key:'b2',label:'B2 — Differentiation rating'},
     {key:'b3',label:'B3 — Evidence and observations'},
     {key:'c1',label:'C1 — Skills gap coverage rating'},
     {key:'c2_tools',label:'C2 — AI tools and platforms covered'},
@@ -1480,14 +1486,14 @@ function adminViewEvaluation(auditId) {
     )+
     sec('B','AI Proficiency Level',
       fld('B1','Difficulty level relative to stated target audience',ratingHtml(['Significantly below','Below','Appropriate','Above','Significantly above'],'b1'))+
-      fld('B2','Differentiation between beginner and advanced learners',ratingHtml(['No differentiation','Limited','Clear','Excellent'],'b2'))+
+
       fld('B3','Evidence and observations',textHtml('b3'))
     )+
     sec('C','Skills Progression',
       fld('C1','Does this course fill identified skills gaps?',ratingHtml(['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'],'c1'))+
-      fld('C2','AI tools and platforms covered',textHtml('c2_tools'))+
-      fld('C3','Currency and relevance of tools covered',ratingHtml(['Outdated','Basic','Current','Advanced','Cutting-edge'],'c3'))+
-      fld('C4','Remaining skills gaps after this course',textHtml('c4'))
+      fld('C2','Remaining skills gaps after this course',textHtml('c4'))+
+      fld('C3','AI tools and platforms covered',textHtml('c2_tools'))+
+      fld('C4','Currency and relevance of tools covered',ratingHtml(['Outdated','Basic','Current','Advanced','Cutting-edge'],'c3'))
     )+
     sec('D','Overall Assessment',
       fld('D1','Recommendation',ratingHtml(['Remove','Include with major revisions','Include with minor improvements','Include as-is','Prioritise as exemplar'],'d1'))
@@ -1909,7 +1915,7 @@ function openFillOnBehalf(auditId,userId){const audit=S.audits.find(a=>a.id===au
 async function submitOnBehalf(auditId,courseId){
   const audit_obo=S.audits.find(a=>a.id===auditId);
   const r_obo={...(audit_obo?.responses||{}),...(S.formEdits[auditId]||{})};
-  const required_obo=['a1','a2','b1','b2','b3','c1','c2_tools','c3','c4','d1'];
+  const required_obo=['a1','a2','b1','b3','c1','c2_tools','c3','c4','d1'];
   const missing_obo=required_obo.filter(k=>!r_obo[k]||!String(r_obo[k]).trim());
   if(missing_obo.length){alert('Please complete all fields before submitting ('+missing_obo.length+' missing).');return;}
   if(!confirm('Submit this evaluation on behalf of the auditor?'))return;
