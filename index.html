@@ -931,7 +931,8 @@ function buildSubmittedHtml(audit){
     </div></div>
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">B</span><span class="eval-sec-title">AI Proficiency Level</span></div><div class="eval-sec-body">
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">B1</span> Difficulty</div>${roRating(['Significantly below','Below','Appropriate','Above','Significantly above'],'b1')}</div>
-      
+      <div class="eval-field"><div class="eval-field-label"><span class="field-code">B2</span> Evidence and observations</div>${roText('b3')}</div>
+    </div></div>
     <div class="eval-section"><div class="eval-sec-head"><span class="eval-sec-code">C</span><span class="eval-sec-title">Skills Progression</span></div><div class="eval-sec-body">
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C1</span> Gaps filled</div>${roRating(['No gaps addressed','Limited gaps','Addresses key gaps','Fills critical gaps'],'c1')}</div>
       <div class="eval-field"><div class="eval-field-label"><span class="field-code">C2</span> Tools covered</div>${roText('c2_tools')}</div>
