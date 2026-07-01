@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='800' fill='%234a8fff'>AI</text></svg>">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Course Audit Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1548,6 +1549,96 @@ async function deleteFileAdmin(path,auditId,userId,containerId){
   await loadFilesAdmin(auditId,userId,containerId);
 }
 
+// ─────────────────────────────────────────────────────────
+//  ASSIGN AUDITOR MODAL
+// ─────────────────────────────────────────────────────────
+function openAssignModal(courseId) {
+  const course = S.courses.find(c => c.id === courseId);
+  if (!course) return;
+  _assignCourseId = courseId;
+
+  qs('#assign-course-name').textContent = course.name;
+
+  // Populate auditor dropdown
+  const auditorSel = qs('#assign-auditor');
+  auditorSel.innerHTML = '<option value="">— Select auditor —</option>';
+  S.profiles
+    .sort((a,b) => (a.full_name||'').localeCompare(b.full_name||''))
+    .forEach(p => {
+      const alreadyClaimed = S.audits.some(a => a.course_id === courseId && a.user_id === p.id && !a.rejection_reason);
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.full_name + (alreadyClaimed ? ' (already assigned)' : '');
+      opt.disabled = alreadyClaimed;
+      auditorSel.appendChild(opt);
+    });
+
+  // Populate run date options
+  const dates = parseRunDates(course.next_run);
+  const dateContainer = qs('#assign-date-options');
+  if (dates.length && dates[0] !== 'TBC – Date to be confirmed') {
+    dateContainer.style.display = '';
+    dateContainer.innerHTML = dates.map((d, i) => `
+      <label class="radio-option" id="aro-${i}" style="margin-bottom:4px">
+        <input type="radio" name="assign-date" value="${esc(d)}"
+          onchange="qs('#assign-date-custom').value='';
+            document.querySelectorAll('[id^=aro-]').forEach(e=>e.classList.remove('selected'));
+            document.getElementById('aro-${i}').classList.add('selected')">
+        <span class="radio-label">${esc(d)}</span>
+      </label>`).join('');
+  } else {
+    dateContainer.style.display = 'none';
+    dateContainer.innerHTML = '';
+  }
+
+  qs('#assign-date-custom').value = '';
+  document.querySelector('input[name="assign-confirm"][value="true"]').checked = true;
+  qs('#assign-modal').classList.add('open');
+}
+
+function closeAssignModal() {
+  qs('#assign-modal').classList.remove('open');
+  _assignCourseId = null;
+}
+
+async function confirmAssign() {
+  const courseId = _assignCourseId;
+  const userId = qs('#assign-auditor').value;
+  if (!userId) return toast('Please select an auditor.', 'error');
+
+  const radioDate = document.querySelector('input[name="assign-date"]:checked')?.value || '';
+  const customDate = qs('#assign-date-custom').value.trim();
+  const date = customDate || radioDate || 'TBC';
+  const confirmNow = document.querySelector('input[name="assign-confirm"]:checked')?.value === 'true';
+
+  // Check if auditor already has a row (e.g. a rejected claim) — update instead of insert
+  const existing = S.audits.find(a => a.course_id === courseId && a.user_id === userId);
+  let error;
+  if (existing) {
+    ({ error } = await db.from('audits').update({
+      preferred_date: date, confirmed: confirmNow,
+      rejection_reason: null, submitted_at: null, responses: {}
+    }).eq('id', existing.id));
+  } else {
+    ({ error } = await db.from('audits').insert({
+      course_id: courseId, user_id: userId,
+      preferred_date: date, confirmed: confirmNow, responses: {}
+    }));
+  }
+  if (error) return toast(error.message, 'error');
+
+  const course = S.courses.find(c => c.id === courseId);
+  const newStatus = confirmNow ? 'Confirmed' : 'Claimed';
+  if (!course?.status || course.status === 'Unassigned' || course.status === 'Claimed') {
+    await db.from('courses').update({ status: newStatus }).eq('id', courseId);
+  }
+
+  closeAssignModal();
+  const auditor = S.profiles.find(p => p.id === userId)?.full_name || 'Auditor';
+  toast(`${auditor} assigned${confirmNow ? ' and confirmed' : ' (pending confirmation)'}.`, 'success');
+  await reload();
+}
+
 const BUCKET = 'audit-materials';
 
 async function handleFileUpload(auditId, files) {
@@ -1605,6 +1696,7 @@ async function deleteFile(path, auditId, readOnly) {
 // ─────────────────────────────────────────────────────────
 //  CONFIRM WITH DATE + CHANGE DATE MODALS
 // ─────────────────────────────────────────────────────────
+let _assignCourseId = null;
 let _confirmAuditId=null, _confirmCourseId=null;
 let _changeDateAuditId=null, _changeDateCourseId=null;
 
