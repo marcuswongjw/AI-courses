@@ -146,18 +146,8 @@ begin
   end if;
 
   -- UPDATE: allow status-only changes for claim bookkeeping
-  if NEW.tgs_number is distinct from OLD.tgs_number
-     or NEW.name is distinct from OLD.name
-     or NEW.pick is distinct from OLD.pick
-     or NEW.archetype is distinct from OLD.archetype
-     or NEW.next_run is distinct from OLD.next_run
-     or NEW.course_fee is distinct from OLD.course_fee
-     or NEW.recommended is distinct from OLD.recommended
-     or coalesce(NEW.training_provider, '') is distinct from coalesce(OLD.training_provider, '')
-     or coalesce(NEW.remarks, '') is distinct from coalesce(OLD.remarks, '')
-     or coalesce(NEW.about_course, '') is distinct from coalesce(OLD.about_course, '')
-     or coalesce(NEW.what_youll_learn, '') is distinct from coalesce(OLD.what_youll_learn, '')
-  then
+  -- Compare all columns except status (works even if optional columns exist)
+  if (to_jsonb(NEW) - 'status') is distinct from (to_jsonb(OLD) - 'status') then
     raise exception 'Only admins can edit course details';
   end if;
 
