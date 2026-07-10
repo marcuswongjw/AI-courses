@@ -71,6 +71,7 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- ---- ROW LEVEL SECURITY ----
+-- Critical: admin is enforced in the DATABASE, not only in the UI.
 
 alter table public.profiles    enable row level security;
 alter table public.courses     enable row level security;
@@ -88,29 +89,121 @@ begin
   end loop;
 end $$;
 
+-- Helper: is current user an admin? (security definer avoids RLS recursion)
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select is_admin from public.profiles where id = auth.uid()),
+    false
+  );
+$$;
+
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to authenticated;
+
+-- Block non-admins from setting is_admin = true (privilege escalation)
+create or replace function public.profiles_guard_is_admin()
+returns trigger
+language plpgsql
+as $$
+begin
+  if TG_OP = 'UPDATE'
+     and NEW.is_admin is distinct from OLD.is_admin
+     and not public.is_admin() then
+    raise exception 'Only an existing admin can change is_admin';
+  end if;
+  if TG_OP = 'INSERT' and NEW.is_admin = true and not public.is_admin() then
+    -- New signups always land as non-admin (trigger inserts is_admin false)
+    NEW.is_admin := false;
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists profiles_guard_is_admin on public.profiles;
+create trigger profiles_guard_is_admin
+  before insert or update on public.profiles
+  for each row execute function public.profiles_guard_is_admin();
+
+-- Non-admins may only change courses.status (claim/unclaim flow).
+-- All other columns require admin.
+create or replace function public.courses_guard_non_admin()
+returns trigger
+language plpgsql
+as $$
+begin
+  if public.is_admin() then
+    return case when TG_OP = 'DELETE' then OLD else NEW end;
+  end if;
+
+  if TG_OP = 'INSERT' or TG_OP = 'DELETE' then
+    raise exception 'Only admins can add or delete courses';
+  end if;
+
+  -- UPDATE: allow status-only changes for claim bookkeeping
+  if NEW.tgs_number is distinct from OLD.tgs_number
+     or NEW.name is distinct from OLD.name
+     or NEW.pick is distinct from OLD.pick
+     or NEW.archetype is distinct from OLD.archetype
+     or NEW.next_run is distinct from OLD.next_run
+     or NEW.course_fee is distinct from OLD.course_fee
+     or NEW.recommended is distinct from OLD.recommended
+     or coalesce(NEW.training_provider, '') is distinct from coalesce(OLD.training_provider, '')
+     or coalesce(NEW.remarks, '') is distinct from coalesce(OLD.remarks, '')
+     or coalesce(NEW.about_course, '') is distinct from coalesce(OLD.about_course, '')
+     or coalesce(NEW.what_youll_learn, '') is distinct from coalesce(OLD.what_youll_learn, '')
+  then
+    raise exception 'Only admins can edit course details';
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists courses_guard_non_admin on public.courses;
+create trigger courses_guard_non_admin
+  before insert or update or delete on public.courses
+  for each row execute function public.courses_guard_non_admin();
+
 -- PROFILES
+-- Select: team can see names (needed for progress UI). is_admin is visible but not writable (trigger).
 create policy "profiles_select" on public.profiles
-  for select using (true);
+  for select to authenticated using (true);
 
 create policy "profiles_insert" on public.profiles
-  for insert with check (auth.uid() = id);
+  for insert to authenticated with check (auth.uid() = id and is_admin = false);
 
-create policy "profiles_update" on public.profiles
-  for update using (auth.uid() = id) with check (auth.uid() = id);
+create policy "profiles_update_self" on public.profiles
+  for update to authenticated
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+-- is_admin changes blocked by profiles_guard_is_admin trigger for non-admins
 
 -- COURSES
 create policy "courses_select" on public.courses
-  for select using (true);
+  for select to authenticated using (true);
 
 create policy "courses_insert" on public.courses
-  for insert to authenticated with check (true);
+  for insert to authenticated with check (public.is_admin());
 
 create policy "courses_update" on public.courses
-  for update to authenticated using (true) with check (true);
+  for update to authenticated
+  using (true)
+  with check (true);
+-- Non-admin field edits blocked by courses_guard_non_admin; status updates allowed for claim flow
+
+create policy "courses_delete" on public.courses
+  for delete to authenticated using (public.is_admin());
 
 -- AVAILABILITY
 create policy "availability_select" on public.availability
-  for select using (true);
+  for select to authenticated
+  using (auth.uid() = user_id or public.is_admin());
 
 create policy "availability_insert" on public.availability
   for insert to authenticated with check (auth.uid() = user_id);
@@ -118,26 +211,30 @@ create policy "availability_insert" on public.availability
 create policy "availability_update" on public.availability
   for update to authenticated using (auth.uid() = user_id);
 
--- AUDITS
+-- AUDITS — evaluations are private (own + admin only)
 create policy "audits_select" on public.audits
-  for select using (true);
+  for select to authenticated
+  using (
+    auth.uid() = user_id
+    or public.is_admin()
+  );
 
 create policy "audits_insert" on public.audits
   for insert to authenticated with check (auth.uid() = user_id);
 
--- Users can update own audits; admins can update any audit (for confirm flow)
 create policy "audits_update" on public.audits
   for update to authenticated
   using (
     auth.uid() = user_id
-    or exists (
-      select 1 from public.profiles
-      where id = auth.uid() and is_admin = true
-    )
+    or public.is_admin()
   );
 
 create policy "audits_delete" on public.audits
-  for delete to authenticated using (auth.uid() = user_id);
+  for delete to authenticated
+  using (
+    auth.uid() = user_id
+    or public.is_admin()
+  );
 
 -- ---- SEED: 35 COURSES ----
 

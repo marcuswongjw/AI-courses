@@ -35,6 +35,14 @@ By default Supabase requires users to verify their email before they can log in.
 
 > **Tip:** If you see an error about a policy already existing, it is safe to ignore — the script drops and recreates them.
 
+#### Already deployed? Apply the critical RLS patch
+
+If the project was set up **before** the security hardening, run **`supabase_critical_rls_patch.sql`** once in the SQL Editor (in addition to keeping schema in sync). That patch:
+
+- Stops non-admins from editing course details (they may still update **status** when claiming)
+- Blocks users from setting `is_admin` on themselves
+- Restricts **audit/evaluation** reads to **owner + admin**
+
 ---
 
 ### 1.4 Get Your API Credentials
@@ -167,6 +175,9 @@ Share the GitHub Pages URL with your team. They can self-register with any email
 | "Failed to fetch" | Wrong Supabase URL | Double-check the Project URL (no trailing slash) |
 | Login succeeds but data doesn't load | RLS or anon key issue | Re-run supabase_schema.sql; check anon key is correct |
 | Admin tab not visible | `is_admin` not set | Follow Part 5 to update the profiles table |
+| "Only admins can edit course details" | Expected for non-admins | Only admins edit names/fees/stars; claim still updates status |
+| Cannot set myself as admin from the app | Expected | Set `is_admin` only in Supabase Table Editor / SQL (Part 5) |
+| Progress auditor table empty for me | Expected for non-admins | Full workload is admin-only after audit privacy RLS |
 | Redirect loop after login | Site URL mismatch | Update Site URL in Supabase Auth settings (Part 1.5) |
 | Course dates show as one option | `next_run` format issue | Dates are comma-separated in DB — e.g. `3 May, 9 May` |
 

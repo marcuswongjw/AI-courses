@@ -395,6 +395,8 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
 <div id="toast"></div>
 
 <script>
+// Public anon key is required for browser apps. Security is enforced by Supabase RLS
+// (see supabase_schema.sql / supabase_critical_rls_patch.sql) — never put the service_role key here.
 const SUPABASE_URL      = 'https://xvkrrczwpjnqklvbppua.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2a3JyY3p3cGpucWtsdmJwcHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMjk1MDAsImV4cCI6MjA5NDgwNTUwMH0.rVydZNoCRHOQDicA4NGtAlCbU4iw8dNHfFzRjnrbsDk';
 
@@ -1097,11 +1099,12 @@ function renderProgress(){
     return progBar(p,done,pc.length,cl,'var(--accent)');
   }).join('');
 
-  // ── Auditor workload ──────────────────────────────────────
-  const auditorStats=S.profiles.filter(p=>!excludedIds.has(p.id)).map(p=>{
+  // ── Auditor workload (admin only — audits RLS hides others' rows from non-admins) ──
+  const isAdmin=!!S.profile?.is_admin;
+  const auditorStats=isAdmin?S.profiles.filter(p=>!excludedIds.has(p.id)).map(p=>{
     const ua=S.audits.filter(a=>a.user_id===p.id);
     return{id:p.id,name:p.full_name,claimed:ua.length,confirmed:ua.filter(a=>a.confirmed).length,submitted:ua.filter(a=>a.submitted_at).length};
-  }).sort((a,b)=>b.claimed-a.claimed||a.name.localeCompare(b.name));
+  }).sort((a,b)=>b.claimed-a.claimed||a.name.localeCompare(b.name)):[];
 
   const auditorRows=auditorStats.map(a=>`<tr>
     <td><button class="auditor-link" onclick="openAuditorModal('${a.id}')">${esc(a.name)}</button></td>
@@ -1192,8 +1195,8 @@ function renderProgress(){
       </div>
     </div>
 
-    <!-- ── Auditor workload ── -->
-    ${auditorStats.length?`
+    <!-- ── Auditor workload (admin — full audit list) ── -->
+    ${isAdmin&&auditorStats.length?`
     <div class="progress-card">
       <div class="progress-card-title">Auditor Workload</div>
       <div class="table-wrap" style="margin-top:12px">
@@ -1202,7 +1205,11 @@ function renderProgress(){
           <tbody>${auditorRows}</tbody>
         </table>
       </div>
-    </div>`:''}`;
+    </div>`:(!isAdmin?`
+    <div class="progress-card">
+      <div class="progress-card-title">Your claims</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.55">Course-level progress above uses public course status. Your personal audits appear under <strong>My Audits</strong>. Full auditor workload is admin-only.</div>
+    </div>`:'')}`;
 }
 
 function adminProviderOpts(audits, section) {
@@ -1980,6 +1987,14 @@ function cancelEditName(){
 async function saveAuditorName(userId){
   const newName=qs('#am-name-input')?.value.trim();
   if(!newName)return toast('Name cannot be empty.','error');
+  // RLS: users may only update their own profile (and cannot set is_admin)
+  if(userId!==S.user?.id && !S.profile?.is_admin){
+    return toast('You can only edit your own name.','error');
+  }
+  if(userId!==S.user?.id){
+    // Admins cannot update others via RLS (self-only); keep message clear
+    return toast('Each person updates their own display name when signed in.','error');
+  }
   const{error}=await db.from('profiles').update({full_name:newName}).eq('id',userId);
   if(error)return toast(error.message,'error');
   // Update local state immediately
