@@ -1806,6 +1806,15 @@ async function adminDeleteEvaluation(auditId,courseId){
   toast('Evaluation deleted.','info');await reload();
 }
 
+async function adminDeleteCourse(courseId){
+  const course=S.courses.find(c=>c.id===courseId);
+  if(!course)return;
+  if(!confirm(`Delete the course "${course.name}"?\n\nThis will permanently remove this course and all its evaluations.`))return;
+  const{error}=await db.from('courses').delete().eq('id',courseId);
+  if(error)return toast(error.message,'error');
+  toast('Course deleted.','info');await reload();
+}
+
 async function adminAddCourse(){
   const name=qs('#nc-name').value.trim();if(!name)return toast('Course name is required.','error');
   const{error}=await db.from('courses').insert({tgs_number:qs('#nc-tgs').value.trim()||null,name,pick:qs('#nc-tier').value,archetype:qs('#nc-arch').value,status:'Unassigned',next_run:qs('#nc-dates').value.trim()||'TBC',course_fee:qs('#nc-fee').value.trim()||'—'});
