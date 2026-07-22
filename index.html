@@ -402,7 +402,7 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const S = {
-  user:null,profile:null,courses:[],audits:[],profiles:[],
+  user:null,profile:null,token:null,courses:[],audits:[],profiles:[],
   tab:'courses',
   filters:{search:'',status:'',tier:'',arch:'',provider:'',recommended:true},
   sort:{col:'provider',dir:'asc'},
@@ -424,11 +424,11 @@ const S = {
 
 async function init() {
   const{data:{session}}=await db.auth.getSession();
-  if(session){S.user=session.user;await loadAll();showApp();}
+  if(session){S.user=session.user;S.token=session.access_token;await loadAll();showApp();}
   else showAuthScreen();
   db.auth.onAuthStateChange(async(event,session)=>{
-    if(event==='SIGNED_IN'&&session){const isRefresh=S.user!=null;S.user=session.user;await loadAll();showApp(!isRefresh);}
-    else if(event==='SIGNED_OUT'){S.user=null;S.profile=null;showAuthScreen();}
+    if(event==='SIGNED_IN'&&session){const isRefresh=S.user!=null;S.user=session.user;S.token=session.access_token;await loadAll();showApp(!isRefresh);}
+    else if(event==='SIGNED_OUT'){S.user=null;S.profile=null;S.token=null;showAuthScreen();}
   });
 }
 
@@ -2130,12 +2130,21 @@ window.addEventListener('beforeunload', () => {
     const audit = S.audits.find(a => a.id === auditId);
     if (!audit || audit.submitted_at) return;
     const merged = {...(audit.responses||{}), ...(S.formEdits[auditId]||{})};
-    // Use sendBeacon for reliable save on page close
-    navigator.sendBeacon &&
-      navigator.sendBeacon(
-        `${SUPABASE_URL}/rest/v1/audits?id=eq.${auditId}`,
-        new Blob([JSON.stringify({responses: merged})], {type:'application/json'})
-      );
+    // Use fetch with keepalive and auth headers for reliable save on page close
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Prefer': 'return=minimal'
+    };
+    if (S.token) {
+      headers['Authorization'] = `Bearer ${S.token}`;
+    }
+    fetch(`${SUPABASE_URL}/rest/v1/audits?id=eq.${auditId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ responses: merged }),
+      keepalive: true
+    });
   });
 });
 
